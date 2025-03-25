@@ -1,1 +1,48 @@
+/* gantt-chart.css */
+.gantt-container {
+    width: 100%;
+    margin: 20px 0;
+    overflow-x: auto;
+    min-height: 300px;
+}
 
+.gantt-toolbar {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.gantt-toolbar button {
+    margin-right: 10px;
+    padding: 5px 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.gantt-toolbar button:hover {
+    background-color: #e9ecef;
+}
+
+.gantt-toolbar select {
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    margin-left: 10px;
+}
+
+/* Frappe Gantt カスタマイズ */
+.gantt .bar-label {
+    font-weight: 500;
+}
+
+.gantt .bar-progress {
+    fill: #5cb85c;
+}
+
+.gantt .today-highlight {
+    fill: rgba(255, 0, 0, 0.1);
+}
