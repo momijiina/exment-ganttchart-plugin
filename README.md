@@ -1,2 +1,4 @@
-# exment-ganttchart-plugin
-Exment用のガントチャートビューです
+# Exment ガントチャートプラグイン
+Exment用のガントチャートビューです。
+
+これは開発テスト品の為、正しく動作しません。
