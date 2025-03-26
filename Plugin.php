@@ -28,14 +28,42 @@ class Plugin extends PluginViewBase
      */
     public function update()
     {
-        $value = request()->get('value');
-        $custom_table = CustomTable::getEloquent(request()->get('table_name'));
-        $custom_value = $custom_table->getValueModel(request()->get('id'));
-        
-        $custom_value->setValue($value)
-            ->save();
+        try {
             
-        return response()->json($custom_value);
+            // リクエストからデータを取得
+            $id = request()->get('id');
+            $table_name = request()->get('table_name');
+            $value = request()->get('value');
+            
+            if (empty($value) || empty($table_name) || empty($id)) {
+                return response()->json(['error' => 'Missing required parameters'], 400);
+            }
+            
+            $custom_table = CustomTable::getEloquent($table_name);
+            if (!$custom_table) {
+                return response()->json(['error' => 'Table not found: ' . $table_name], 404);
+            }
+            
+            $custom_value = $custom_table->getValueModel($id);
+            if (!$custom_value) {
+                return response()->json(['error' => 'Value not found: ' . $id], 404);
+            }
+            
+            // 値を設定して保存
+            $custom_value->setValue($value)->save();
+        
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Task updated successfully',
+                'data' => $custom_value
+            ]);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'error' => 'Server error: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -126,6 +154,8 @@ class Plugin extends PluginViewBase
             $title_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('title_column'));
         }
         
+        $update_url = $this->plugin->getFullUrl('update');
+        
         $tasks = [];
         
         foreach ($items as $item) {
@@ -156,7 +186,11 @@ class Plugin extends PluginViewBase
                 'start' => $start_date,
                 'end' => $end_date,
                 'progress' => $progress,
-                'table_name' => $this->custom_table->table_name
+                'table_name' => $this->custom_table->table_name,
+                'update_url' => $update_url,
+                'progress_column' => $progress_column->column_name,
+                'start_column' => $start_date_column->column_name,
+                'end_column' => $end_date_column->column_name
             ];
         }
         
