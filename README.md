@@ -5,7 +5,7 @@ Exment用のガントチャートビューです。
 # このプラグインには以下が含まれます。
 - **[Exment](https://github.com/exceedone/exment)**
 
-  Exemnt用プラグインとして作成しています。
+  Exment用プラグインとして作成しています。
 
 - **[Frappe Gantt](https://github.com/frappe/gantt)**
 
