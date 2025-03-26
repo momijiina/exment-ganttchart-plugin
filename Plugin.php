@@ -49,6 +49,10 @@ class Plugin extends PluginViewBase
     {
         // 独自設定を追加する場合
         $form->embeds('custom_options', '詳細設定', function($form) {
+            $form->select('title_column', 'タイトル列')
+                ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
+                ->help('タスクのタイトルとして表示する列を選択してください。選択しない場合はデフォルトのラベルが使用されます。');
+                
             $form->select('start_date_column', '開始日列')
                 ->options($this->custom_table->getFilteredTypeColumns([ColumnType::DATE, ColumnType::DATETIME])->pluck('column_view_name', 'id'))
                 ->required()
@@ -112,9 +116,14 @@ class Plugin extends PluginViewBase
         $start_date_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('start_date_column'));
         $end_date_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('end_date_column'));
         $progress_column = null;
+        $title_column = null;
         
         if ($this->custom_view->getCustomOption('progress_column')) {
             $progress_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('progress_column'));
+        }
+        
+        if ($this->custom_view->getCustomOption('title_column')) {
+            $title_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('title_column'));
         }
         
         $tasks = [];
@@ -132,9 +141,18 @@ class Plugin extends PluginViewBase
                 $progress = (int)array_get($item, 'value.' . $progress_column->column_name, 0);
             }
             
+            // タイトル列が設定されている場合はその値を使用、そうでなければデフォルトのラベルを使用
+            $name = $item->getLabel();
+            if ($title_column) {
+                $custom_title = array_get($item, 'value.' . $title_column->column_name);
+                if (!empty($custom_title)) {
+                    $name = $custom_title;
+                }
+            }
+            
             $tasks[] = [
                 'id' => $item->id,
-                'name' => $item->getLabel(),
+                'name' => $name,
                 'start' => $start_date,
                 'end' => $end_date,
                 'progress' => $progress,
