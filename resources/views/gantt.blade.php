@@ -37,11 +37,9 @@
         <button id="btn-today">今日</button>
         <select id="view-mode">
             <option value="Day">日</option>
-            <!--必要なら有効化してください
             <option value="Week">週</option>
             <option value="Month">月</option>
             <option value="Year">年</option>
-            -->
         </select>
     </div>
     
@@ -53,10 +51,14 @@
     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js"></script>
     
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // タスクデータの取得
-            const tasks = @json($values);
-            
+        // タスクデータの取得
+        const tasks = @json($values);
+        
+        function initGanttChart() {
+            if (!document.getElementById('gantt')) {
+                console.error('Gantt element not found');
+                return;
+            }
             // ガントチャートの初期化
             const gantt = new Gantt("#gantt", tasks, {
                 header_height: 50,
@@ -78,36 +80,7 @@
                     updateTask(task);
                 }
             });
-            
-            // タスク更新関数
-            function updateTask(task) {
-                const data = {
-                    id: task.id,
-                    table_name: task.table_name,
-                    value: {
-                        start: task.start,
-                        end: task.end,
-                        progress: task.progress
-                    }
-                };
-                
-                fetch('update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify(data)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Success:', data);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-            }
-            
+
             // 表示モード変更
             document.getElementById('view-mode').addEventListener('change', function(e) {
                 gantt.change_view_mode(e.target.value);
@@ -117,8 +90,51 @@
             document.getElementById('btn-today').addEventListener('click', function() {
                 gantt.scroll_to_today();
             });
+        }
+    
+        
+        // タスク更新関数
+        function updateTask(task) {
+            const data = {
+                id: task.id,
+                table_name: task.table_name,
+                value: {
+                    start: task.start,
+                    end: task.end,
+                    progress: task.progress
+                }
+            };
+            
+            fetch('update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+        
+        window.addEventListener('load', function() {
+            console.log('Window load event fired');
+            initGanttChart();
         });
+
+        // 即時実行関数で初期化も試みる
+        (function() {
+            console.log('Immediate execution');
+            // DOMが既に読み込まれている場合は即時実行
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(initGanttChart, 1);
+            }
+        })();    
     </script>
 </body>
 </html>
-
