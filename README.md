@@ -13,4 +13,5 @@ Exment用のガントチャートビューです。
 
   Frappe GanttのCDNを使用しています。
 
-![ss](https://github.com/user-attachments/assets/c30f688e-829b-4717-a407-c1af74d4e064)
+![ss1](https://github.com/user-attachments/assets/88be1438-4a9d-4534-a6e6-535c0f2b4e36)
+
