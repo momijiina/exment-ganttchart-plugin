@@ -39,8 +39,26 @@
     font-weight: 500;
 }
 
-.gantt .bar-progress {
-    fill: #5cb85c;
+/* タスクの色カスタマイズ用のスタイル */
+.gantt .bar-wrapper.gantt-red .bar {
+    fill: #ff5252;
+}
+.gantt .bar-wrapper.gantt-red .bar-progress {
+    fill: #d32f2f;
+}
+
+.gantt .bar-wrapper.gantt-blue .bar {
+    fill: #4285f4;
+}
+.gantt .bar-wrapper.gantt-blue .bar-progress {
+    fill: #1a73e8;
+}
+
+.gantt .bar-wrapper.gantt-green .bar {
+    fill: #4caf50;
+}
+.gantt .bar-wrapper.gantt-green .bar-progress {
+    fill: #388e3c;
 }
 
 .gantt .today-highlight {
