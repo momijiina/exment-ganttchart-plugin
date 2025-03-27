@@ -94,6 +94,10 @@ class Plugin extends PluginViewBase
             $form->select('progress_column', '進捗率列')
                 ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL])->pluck('column_view_name', 'id'))
                 ->help('タスクの進捗率を表す列を選択してください。カスタム列種類「整数」「小数」が候補に表示されます。');
+                
+            $form->select('color_column', '色指定列')
+                ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
+                ->help('タスクの色を指定する列を選択してください。列の値が「赤」「青」「緑」の場合、対応する色でタスクが表示されます。それ以外の値や値がない場合は青色で表示されます。');
         });
         
         // フィルタ(絞り込み)の設定を行う場合
@@ -145,6 +149,7 @@ class Plugin extends PluginViewBase
         $end_date_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('end_date_column'));
         $progress_column = null;
         $title_column = null;
+        $color_column = null;
         
         if ($this->custom_view->getCustomOption('progress_column')) {
             $progress_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('progress_column'));
@@ -152,6 +157,10 @@ class Plugin extends PluginViewBase
         
         if ($this->custom_view->getCustomOption('title_column')) {
             $title_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('title_column'));
+        }
+        
+        if ($this->custom_view->getCustomOption('color_column')) {
+            $color_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('color_column'));
         }
         
         $update_url = $this->plugin->getFullUrl('update');
@@ -180,7 +189,8 @@ class Plugin extends PluginViewBase
                 }
             }
             
-            $tasks[] = [
+            // タスクの基本情報を設定
+            $task = [
                 'id' => $item->id,
                 'name' => $name,
                 'start' => $start_date,
@@ -188,10 +198,32 @@ class Plugin extends PluginViewBase
                 'progress' => $progress,
                 'table_name' => $this->custom_table->table_name,
                 'update_url' => $update_url,
-                'progress_column' => $progress_column->column_name,
+                'progress_column' => $progress_column ? $progress_column->column_name : '',
                 'start_column' => $start_date_column->column_name,
                 'end_column' => $end_date_column->column_name
             ];
+            
+            // 色の設定
+            if ($color_column) {
+                $color_value = array_get($item, 'value.' . $color_column->column_name);
+                if (!empty($color_value)) {
+                    // 色の値に基づいてCSSクラスを設定
+                    $color_value = trim(strtolower($color_value));
+                    if ($color_value === '赤' || $color_value === 'red') {
+                        $task['custom_class'] = 'gantt-red';
+                    } elseif ($color_value === '緑' || $color_value === 'green') {
+                        $task['custom_class'] = 'gantt-green';
+                    } else {
+                        // 青または他の値の場合はデフォルトで青
+                        $task['custom_class'] = 'gantt-blue';
+                    }
+                } else {
+                    // 値がない場合はデフォルトで青
+                    $task['custom_class'] = 'gantt-blue';
+                }
+            }
+            
+            $tasks[] = $task;
         }
         
         return $tasks;
