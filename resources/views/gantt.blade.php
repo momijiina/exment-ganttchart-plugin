@@ -140,6 +140,24 @@
             }
         }
         
+        // 日付をYYYY-MM-DD形式に変換する関数
+        function formatDateToYYYYMMDD(date) {
+            if (typeof date === 'string') {
+                // 既にYYYY-MM-DD形式の場合はそのまま返す
+                if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                    return date;
+                }
+                // 文字列をDateオブジェクトに変換
+                date = new Date(date);
+            }
+            
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            
+            return `${year}-${month}-${day}`;
+        }
+        
         // ガントチャートの初期化
         function initGanttChart() {
             if (!document.getElementById('gantt')) {
@@ -186,13 +204,17 @@
     
         // タスク日付更新関数
         function updateTask(task, start, end) {
-           
             // CSRFトークンの取得
-            const token = getCSRFToken();            
+            const token = getCSRFToken();
+            
+            // 日付をYYYY-MM-DD形式に変換
+            const formattedStart = formatDateToYYYYMMDD(start);
+            const formattedEnd = formatDateToYYYYMMDD(end);
+            
             // 値の更新
             let value = {};
-            value[task.start_column] = task.start;
-            value[task.end_column] = task.end;
+            value[task.start_column] = formattedStart;
+            value[task.end_column] = formattedEnd;
             
             // データの作成
             let data = {
@@ -201,22 +223,34 @@
                 table_name: task.table_name,
                 value: value
             };
-                        
+            
+            console.log('Updating task dates:', data);
+                    
             // AJAXを使用してデータを送信
             $.ajax({
                 type: 'POST',
                 url: task.update_url,
                 data: data,
                 success: function(response) {
+                    console.log('Update success:', response);
                     showToast('タスクが更新されました！', 'success');
+                    
+                    // タスクオブジェクトを更新して表示を同期
+                    task.start = formattedStart;
+                    task.end = formattedEnd;
                 },
                 error: function(xhr, status, error) {
+                    console.error('Error:', error);
+                    console.error('Status:', status);
+                    console.error('Response:', xhr.responseText);
                     showToast('タスクの更新に失敗しました: ' + error, 'error');
                     
                     // エラーの詳細を表示
                     try {
                         const errorObj = JSON.parse(xhr.responseText);
+                        console.error('Error details:', errorObj);
                     } catch (e) {
+                        console.error('Could not parse error response');
                     }
                 }
             });
@@ -229,7 +263,7 @@
             
             // 値の更新
             let value = {};
-            value[task.progress_column] = task.progress;
+            value[task.progress_column] = progress;
             
             // データの作成
             let data = {
@@ -238,20 +272,34 @@
                 table_name: task.table_name,
                 value: value
             };
-                        
+            
+            console.log('Updating task progress:', data);
+                    
             // AJAXを使用してデータを送信
             $.ajax({
                 type: 'POST',
                 url: task.update_url,
                 data: data,
                 success: function(response) {
+                    console.log('Update success:', response);
                     showToast('進捗が更新されました！', 'success');
+                    
+                    // タスクオブジェクトを更新して表示を同期
+                    task.progress = progress;
                 },
                 error: function(xhr, status, error) {
                     console.error('Error:', error);
                     console.error('Status:', status);
                     console.error('Response:', xhr.responseText);
                     showToast('進捗の更新に失敗しました: ' + error, 'error');
+                    
+                    // エラーの詳細を表示
+                    try {
+                        const errorObj = JSON.parse(xhr.responseText);
+                        console.error('Error details:', errorObj);
+                    } catch (e) {
+                        console.error('Could not parse error response');
+                    }
                 }
             });
         }
