@@ -52,6 +52,28 @@
         .toast.show {
             opacity: 1;
         }
+        
+        /* タスクの色カスタマイズ用のスタイル */
+        .gantt .bar-wrapper.gantt-red .bar {
+            fill: #ff5252;
+        }
+        .gantt .bar-wrapper.gantt-red .bar-progress {
+            fill: #d32f2f;
+        }
+        
+        .gantt .bar-wrapper.gantt-blue .bar {
+            fill: #4285f4;
+        }
+        .gantt .bar-wrapper.gantt-blue .bar-progress {
+            fill: #1a73e8;
+        }
+        
+        .gantt .bar-wrapper.gantt-green .bar {
+            fill: #4caf50;
+        }
+        .gantt .bar-wrapper.gantt-green .bar-progress {
+            fill: #388e3c;
+        }
     </style>
     <!-- Frappe Gantt CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css">
@@ -102,7 +124,6 @@
             return '';
         }
         
-        // カスタムトースト通知を表示する関数
         function showCustomToast(message, type) {
             const toastContainer = document.querySelector('.toast-container');
             const toast = document.createElement('div');
@@ -182,6 +203,7 @@
                 popup_trigger: 'click',
                 language: 'ja',
                 on_click: function(task) {
+                    console.log('Task clicked:', task);
                 },
                 on_date_change: function(task, start, end) {
                     updateTask(task, start, end);
@@ -200,6 +222,8 @@
             document.getElementById('btn-today').addEventListener('click', function() {
                 gantt.scroll_to_today();
             });
+            
+            return gantt;
         }
     
         // タスク日付更新関数
