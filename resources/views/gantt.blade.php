@@ -179,6 +179,18 @@
             return `${year}-${month}-${day}`;
         }
         
+        // 終了日を調整する関数
+        function adjustEndDate(date) {
+            if (typeof date === 'string') {
+                date = new Date(date);
+            }
+            
+            const adjustedDate = new Date(date);
+            adjustedDate.setDate(adjustedDate.getDate() + 1);
+            
+            return adjustedDate;
+        }
+        
         // ガントチャートの初期化
         function initGanttChart() {
             if (!document.getElementById('gantt')) {
@@ -204,6 +216,7 @@
                 language: 'ja',
                 on_click: function(task) {
                     console.log('Task clicked:', task);
+                    // シングルクリックでは何もしない（ダブルクリックと区別するため）
                 },
                 on_date_change: function(task, start, end) {
                     updateTask(task, start, end);
@@ -223,7 +236,69 @@
                 gantt.scroll_to_today();
             });
             
+            // タスクバーにダブルクリックイベントを追加（シンプルな実装）
+            document.querySelector('#gantt').addEventListener('dblclick', function(event) {
+                // クリックされた要素がタスクバーかその子要素かを確認
+                let target = event.target;
+                let barWrapper = null;
+                
+                // クリックされた要素またはその親要素がbar-wrapperクラスを持つか確認
+                while (target && target !== this) {
+                    if (target.classList && target.classList.contains('bar-wrapper')) {
+                        barWrapper = target;
+                        break;
+                    }
+                    target = target.parentElement;
+                }
+                
+                // タスクバーがクリックされた場合
+                if (barWrapper) {
+                    const taskId = barWrapper.getAttribute('data-id');
+                    if (taskId) {
+                        const task = window.ganttTasks.find(t => t.id == taskId);
+                        if (task) {
+                            // タスクの詳細ページを開く
+                            openTaskDetailPage(task);
+                        }
+                    }
+                }
+            });
+            
             return gantt;
+        }
+        
+        // タスクの詳細ページを開く関数（シンプルな実装）
+        function openTaskDetailPage(task) {
+            // データの詳細ページのURLを生成
+            let url = '';
+            
+            // Exmentの管理画面のベースURLを取得
+            if (typeof LA !== 'undefined' && LA.base_url) {
+                url = LA.base_url + '/data/' + task.table_name + '/' + task.id + '?modal=1';
+            } else {
+                // ベースURLが取得できない場合は現在のパスから推測
+                const currentPath = window.location.pathname;
+                const adminIndex = currentPath.indexOf('/admin');
+                if (adminIndex !== -1) {
+                    const baseUrl = currentPath.substring(0, adminIndex + 6); // '/admin'を含める
+                    url = baseUrl + '/data/' + task.table_name + '/' + task.id + '?modal=1';
+                } else {
+                    // 最後の手段として相対パスを使用
+                    url = '/admin/data/' + task.table_name + '/' + task.id + '?modal=1';
+                }
+            }
+            
+            console.log('Opening task detail page:', url);
+            
+            // Exmentのモーダル表示機能を使用
+            if (typeof Exment !== 'undefined' && typeof Exment.ModalEvent !== 'undefined' && typeof Exment.ModalEvent.ShowModal === 'function') {
+                // ダミーのjQueryオブジェクトを作成
+                const $dummy = $('<div>');
+                Exment.ModalEvent.ShowModal($dummy, url);
+            } else {
+                // Exmentのモーダル機能が利用できない場合は新しいタブで開く
+                window.open(url, '_blank');
+            }
         }
     
         // タスク日付更新関数
@@ -231,9 +306,18 @@
             // CSRFトークンの取得
             const token = getCSRFToken();
             
+            console.log('Original end date from Frappe Gantt:', end);
+            
+            // 終了日を調整（Frappe Ganttは終了日を翌日として扱うため）
+            const adjustedEnd = adjustEndDate(end);
+            
+            console.log('Adjusted end date for server:', adjustedEnd);
+            
             // 日付をYYYY-MM-DD形式に変換
             const formattedStart = formatDateToYYYYMMDD(start);
-            const formattedEnd = formatDateToYYYYMMDD(end);
+            const formattedEnd = formatDateToYYYYMMDD(adjustedEnd);
+            
+            console.log('Formatted dates - Start:', formattedStart, 'End:', formattedEnd);
             
             // 値の更新
             let value = {};
