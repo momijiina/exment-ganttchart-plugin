@@ -14,3 +14,7 @@ Exment用のガントチャートビューです。
 
 ![ss1](https://github.com/user-attachments/assets/88be1438-4a9d-4534-a6e6-535c0f2b4e36)
 
+ダブルクリックで詳細を表示
+![ss2](https://github.com/user-attachments/assets/15dbc500-0ac3-42c3-83cc-b21a7b41d344)
+
+
