@@ -74,6 +74,20 @@
         .gantt .bar-wrapper.gantt-green .bar-progress {
             fill: #388e3c;
         }
+        
+        /* 進捗バーのハンドル */
+        .progress-handle {
+            fill: #fff;
+            stroke: #666;
+            stroke-width: 1;
+            cursor: ew-resize;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .bar-wrapper:hover .progress-handle {
+            opacity: 1;
+        }
     </style>
     <!-- Frappe Gantt CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css">
@@ -101,6 +115,23 @@
     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js"></script>
     
     <script>
+        // jquery.pjaxとlaravel-adminのエラーを防止するためのパッチ
+        if (typeof $.pjax === 'undefined') {
+            $.pjax = {
+                defaults: {}
+            };
+        }
+        
+        if (typeof $.pjax.defaults === 'undefined') {
+            $.pjax.defaults = {
+                timeout: 650,
+                push: true,
+                replace: false,
+                scrollTo: 0,
+                maxCacheLength: 20
+            };
+        }
+        
         // タスクデータをPHPから取得してJavaScriptで利用できるようにする
         window.ganttTasks = @json($values);
         
@@ -179,8 +210,8 @@
             return `${year}-${month}-${day}`;
         }
         
-        // 終了日を調整する関数
-        function adjustEndDate(date) {
+        // 終了日を調整する関数（1日追加）
+        function adjustEndDateAdd(date) {
             if (typeof date === 'string') {
                 date = new Date(date);
             }
@@ -190,6 +221,62 @@
             
             return adjustedDate;
         }
+        
+        // 終了日を調整する関数（1日減算）
+        function adjustEndDateSubtract(date) {
+            if (typeof date === 'string') {
+                date = new Date(date);
+            }
+            
+            const adjustedDate = new Date(date);
+            adjustedDate.setDate(adjustedDate.getDate() - 1);
+            
+            return adjustedDate;
+        }
+        
+        // Frappe Ganttのプロトタイプを拡張して進捗率変更機能を無効化
+        (function() {
+            // Frappe Ganttが読み込まれているか確認
+            if (typeof Gantt !== 'undefined') {
+                // 進捗率変更に関連するメソッドをオーバーライド
+                const originalBindProgressEvents = Gantt.prototype.bind_progress_events;
+                Gantt.prototype.bind_progress_events = function() {
+                    // 何もしない - 進捗率変更イベントを無効化
+                    console.log('Progress events disabled');
+                };
+                
+                // 進捗率変更に関連する他のメソッドも無効化
+                Gantt.prototype.setup_progress_drag = function() {
+                    // 何もしない
+                };
+                
+                Gantt.prototype.handle_progress_drag = function() {
+                    // 何もしない
+                };
+                
+                Gantt.prototype.bar_progress_mousedown = function() {
+                    // 何もしない
+                    return false;
+                };
+                
+                // 日付変更イベントをオーバーライド
+                const originalSetupDateChange = Gantt.prototype.setup_date_change;
+                Gantt.prototype.setup_date_change = function() {
+                    originalSetupDateChange.call(this);
+                    
+                    // 日付変更時の処理をカスタマイズ
+                    const originalUpdateBarPosition = this.update_bar_position;
+                    this.update_bar_position = function(task) {
+                        originalUpdateBarPosition.call(this, task);
+                        
+                        // 日付変更後に終了日を調整（Frappe Gantt内部での表示用）
+                        if (task._end.getHours() === 0) {
+                            console.log('Adjusting end date display for task:', task.name);
+                        }
+                    };
+                };
+            }
+        })();
         
         // ガントチャートの初期化
         function initGanttChart() {
@@ -214,6 +301,8 @@
                 date_format: 'YYYY-MM-DD',
                 popup_trigger: 'click',
                 language: 'ja',
+                readonly: false,
+                readonly_progress: true, // 進捗率の変更をFrappe Ganttのデフォルト機能では無効化
                 on_click: function(task) {
                     console.log('Task clicked:', task);
                     // シングルクリックでは何もしない（ダブルクリックと区別するため）
@@ -222,6 +311,8 @@
                     updateTask(task, start, end);
                 },
                 on_progress_change: function(task, progress) {
+                    // このイベントは発火しないはずだが、念のため実装
+                    console.log('Progress change event triggered (should not happen)');
                     updateTaskProgress(task, progress);
                 }
             });
@@ -264,7 +355,168 @@
                 }
             });
             
+            // 進捗率変更のためのカスタムイベントハンドラを追加
+            document.querySelector('#gantt').addEventListener('mousedown', function(event) {
+                // クリックされた要素が進捗ハンドルかどうかを確認
+                let target = event.target;
+                let isProgressHandle = false;
+                let progressHandle = null;
+                
+                // 進捗ハンドルのクリックかどうかを確認
+                if (target.classList && target.classList.contains('progress-handle')) {
+                    isProgressHandle = true;
+                    progressHandle = target;
+                }
+                
+                // 進捗ハンドルがクリックされた場合のみ処理
+                if (isProgressHandle && progressHandle) {
+                    const barWrapper = progressHandle.closest('.bar-wrapper');
+                    if (barWrapper) {
+                        const taskId = barWrapper.getAttribute('data-id');
+                        if (taskId) {
+                            const task = window.ganttTasks.find(t => t.id == taskId);
+                            if (task) {
+                                // 進捗率変更のためのカスタムハンドラを設定
+                                setupProgressDrag(event, task, barWrapper);
+                                
+                                //タスク全体のドラッグを防止
+                                event.preventDefault();
+                                event.stopPropagation();
+                            }
+                        }
+                    }
+                }
+            }, true); // キャプチャフェーズでイベントをリッスン
+            
+            // 進捗ハンドルを追加
+            addProgressHandles();
+            
             return gantt;
+        }
+        
+        // 進捗ハンドルを追加する関数
+        function addProgressHandles() {
+            // すべてのタスクバーを取得
+            const barWrappers = document.querySelectorAll('.bar-wrapper');
+            
+            barWrappers.forEach(barWrapper => {
+                const bar = barWrapper.querySelector('.bar');
+                const barProgress = barWrapper.querySelector('.bar-progress');
+                
+                if (!bar || !barProgress) return;
+                
+                // 既存のハンドルを削除（再描画時の重複を防止）
+                const existingHandles = barWrapper.querySelectorAll('.progress-handle');
+                existingHandles.forEach(handle => handle.remove());
+                
+                // 進捗バーの幅と位置を取得
+                const barWidth = parseFloat(bar.getAttribute('width'));
+                const progressWidth = parseFloat(barProgress.getAttribute('width'));
+                const barX = parseFloat(bar.getAttribute('x'));
+                const barY = parseFloat(bar.getAttribute('y'));
+                const barHeight = parseFloat(bar.getAttribute('height'));
+                
+                // 進捗ハンドルの位置を計算
+                const handleX = barX + progressWidth;
+                const handleY = barY;
+                
+                // SVG名前空間                
+                const svgns = "http://www.w3.org/2000/svg";
+
+                // 進捗ハンドルを作成
+                const handle = document.createElementNS(svgns, "circle");
+                handle.setAttribute("cx", handleX);
+                handle.setAttribute("cy", handleY + barHeight / 2);
+                handle.setAttribute("r", 4);
+                handle.setAttribute("class", "progress-handle");
+                
+                // ハンドルをバーラッパーに追加
+                barWrapper.appendChild(handle);
+                
+            });
+        }
+        
+        // 進捗率ドラッグ処理のセットアップ
+        function setupProgressDrag(event, task, barWrapper) {
+            // 進捗列が設定されていない場合は何もしない
+            if (!task.progress_column) {
+                console.warn('Progress column not set for task:', task);
+                showToast('進捗列が設定されていません。', 'error');
+                return;
+            }
+            
+            // 初期位置を記録
+            const startX = event.clientX;
+            const bar = barWrapper.querySelector('.bar');
+            const barProgress = barWrapper.querySelector('.bar-progress');
+            const progressHandle = barWrapper.querySelector('.progress-handle');
+            
+            if (!bar || !barProgress) return;
+            
+            // バーの幅を取得
+            const barWidth = parseFloat(bar.getAttribute('width'));
+            const initialProgress = task.progress || 0;
+            
+            // マウスムーブイベントハンドラ
+            function onMouseMove(e) {
+                // 移動距離を計算
+                const dx = e.clientX - startX;
+                
+                // 進捗率を計算（0-100の範囲に制限）
+                let newProgress = initialProgress + (dx / barWidth) * 100;
+                newProgress = Math.min(100, Math.max(0, newProgress));
+                newProgress = Math.round(newProgress);
+                
+                // 進捗バーの幅を更新
+                const progressWidth = (barWidth * newProgress) / 100;
+                barProgress.setAttribute('width', progressWidth);
+                
+                // 進捗ハンドルの位置を更新
+                if (progressHandle) {
+                    const barX = parseFloat(bar.getAttribute('x'));
+                    progressHandle.setAttribute('cx', barX + progressWidth);
+                }
+                
+                // 進捗率テキストを更新（存在する場合）
+                const progressText = barWrapper.querySelector('.bar-progress-text');
+                if (progressText) {
+                    progressText.textContent = `${newProgress}%`;
+                }
+                
+                // 現在の進捗率を一時的に保存
+                barWrapper.dataset.currentProgress = newProgress;
+                
+                // イベントの伝播を停止して、タスク全体のドラッグを防止
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            // マウスアップイベントハンドラ
+            function onMouseUp(e) {
+                // イベントリスナーを削除
+                document.removeEventListener('mousemove', onMouseMove, true);
+                document.removeEventListener('mouseup', onMouseUp, true);
+                
+                // 最終的な進捗率を取得
+                const finalProgress = parseInt(barWrapper.dataset.currentProgress || initialProgress);
+                
+                // 進捗率が変更された場合のみ更新
+                if (finalProgress !== initialProgress) {
+                    // サーバーに進捗率を更新
+                    updateTaskProgress(task, finalProgress);
+                    
+                    // タスクオブジェクトを更新
+                    task.progress = finalProgress;
+                }
+                
+                // イベントの伝播を停止して、タスク全体のドラッグを防止
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            // イベントリスナーを追加（キャプチャフェーズで）
+            document.addEventListener('mousemove', onMouseMove, true);
+            document.addEventListener('mouseup', onMouseUp, true);
         }
         
         // タスクの詳細ページを開く関数（シンプルな実装）
@@ -300,29 +552,28 @@
                 window.open(url, '_blank');
             }
         }
-    
+        
         // タスク日付更新関数
         function updateTask(task, start, end) {
             // CSRFトークンの取得
             const token = getCSRFToken();
             
-            console.log('Original end date from Frappe Gantt:', end);
-            
-            // 終了日を調整（Frappe Ganttは終了日を翌日として扱うため）
-            const adjustedEnd = adjustEndDate(end);
-            
-            console.log('Adjusted end date for server:', adjustedEnd);
-            
             // 日付をYYYY-MM-DD形式に変換
-            const formattedStart = formatDateToYYYYMMDD(start);
-            const formattedEnd = formatDateToYYYYMMDD(adjustedEnd);
+            const startDate = formatDateToYYYYMMDD(start);
             
-            console.log('Formatted dates - Start:', formattedStart, 'End:', formattedEnd);
+            // 終了日を調整（Frappe Ganttは終了日を含む形式、データベースは終了日を含まない形式）
+            // 終了日を1日追加して調整
+            const adjustedEnd = adjustEndDateAdd(end);
+            const endDate = formatDateToYYYYMMDD(adjustedEnd);
+            
+            console.log('Original end date:', end);
+            console.log('Adjusted end date:', adjustedEnd);
+            console.log('Formatted end date:', endDate);
             
             // 値の更新
             let value = {};
-            value[task.start_column] = formattedStart;
-            value[task.end_column] = formattedEnd;
+            value[task.start_column] = startDate;
+            value[task.end_column] = endDate;
             
             // データの作成
             let data = {
@@ -333,7 +584,7 @@
             };
             
             console.log('Updating task dates:', data);
-                    
+            
             // AJAXを使用してデータを送信
             $.ajax({
                 type: 'POST',
@@ -341,17 +592,20 @@
                 data: data,
                 success: function(response) {
                     console.log('Update success:', response);
-                    showToast('タスクが更新されました！', 'success');
+                    showToast('日付が更新されました！', 'success');
                     
                     // タスクオブジェクトを更新して表示を同期
-                    task.start = formattedStart;
-                    task.end = formattedEnd;
+                    task.start = startDate;
+                    
+                    // 表示用の終了日はFrappe Ganttの形式（終了日を含む）に合わせる
+                    // データベースには終了日+1を保存するが、表示は元の終了日を使用
+                    task.end = formatDateToYYYYMMDD(end);
                 },
                 error: function(xhr, status, error) {
                     console.error('Error:', error);
                     console.error('Status:', status);
                     console.error('Response:', xhr.responseText);
-                    showToast('タスクの更新に失敗しました: ' + error, 'error');
+                    showToast('日付の更新に失敗しました: ' + error, 'error');
                     
                     // エラーの詳細を表示
                     try {
@@ -366,6 +620,13 @@
         
         // タスク進捗更新関数
         function updateTaskProgress(task, progress) {            
+            // 進捗列が設定されていない場合は更新しない
+            if (!task.progress_column) {
+                console.warn('Progress column not set for task:', task);
+                showToast('進捗列が設定されていません。', 'error');
+                return;
+            }
+            
             // CSRFトークンの取得
             const token = getCSRFToken();
             
@@ -424,6 +685,12 @@
                 setTimeout(initGanttChart, 1);
             }
         })();
+        
+        // ビューモード変更時に進捗ハンドルを再描画
+        document.getElementById('view-mode').addEventListener('change', function() {
+            // 少し遅延を入れて、ガントチャートの再描画後にハンドルを追加
+            setTimeout(addProgressHandles, 100);
+        });
     </script>
 </body>
 </html>
