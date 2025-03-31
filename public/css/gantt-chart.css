@@ -27,6 +27,29 @@
     background-color: #e9ecef;
 }
 
+/* 編集モード切替ボタンのスタイル */
+.edit-mode-toggle {
+    float: right;
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    transition: background-color 0.3s;
+}
+
+.edit-mode-toggle.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #0069d9;
+}
+
+.edit-mode-icon {
+    margin-right: 5px;
+}
+
+.edit-mode-text {
+    font-size: 0.9em;
+}
+
 .gantt-toolbar select {
     padding: 5px;
     border: 1px solid #ddd;
