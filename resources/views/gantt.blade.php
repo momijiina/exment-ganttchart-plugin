@@ -49,6 +49,26 @@
         .toast.error {
             background-color: #dc3545;
         }
+        .toast.info {
+            background-color: #17a2b8;
+        }
+        /* フルスクリーンモード用のスタイル */
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9000;
+            background: white;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .btn-fullscreen {
+            float: right;
+            margin-left: 10px;
+        }
+        }
         .toast.show {
             opacity: 1;
         }
@@ -101,6 +121,14 @@
             <option value="Month">月</option>
             <option value="Year">年</option>
         </select>
+        <button id="btn-toggle-edit" class="edit-mode-toggle" title="編集モード切替">
+            <span class="edit-mode-icon">✏️</span>
+            <span class="edit-mode-text">編集モード: OFF</span>
+        </button>
+        <button id="btn-fullscreen" class="btn-fullscreen" title="フルスクリーン表示">
+            <span class="fullscreen-icon">🔍</span>
+            <span class="fullscreen-text">フルスクリーン</span>
+        </button>
     </div>
     
     <div class="gantt-container">
@@ -301,8 +329,9 @@
                 date_format: 'YYYY-MM-DD',
                 popup_trigger: 'click',
                 language: 'ja',
-                readonly: false,
+                readonly: true, // デフォルトは読み取りモード
                 readonly_progress: true, // 進捗率の変更をFrappe Ganttのデフォルト機能では無効化
+                today_button: false, // 英語のtodayボタンを無効化
                 on_click: function(task) {
                     console.log('Task clicked:', task);
                     // シングルクリックでは何もしない（ダブルクリックと区別するため）
@@ -322,10 +351,125 @@
                 gantt.change_view_mode(e.target.value);
             });
             
-            // 今日ボタン
+            // 今日ボタン - 修正版
             document.getElementById('btn-today').addEventListener('click', function() {
-                gantt.scroll_to_today();
+                // 現在の日付を取得
+                const today = new Date();
+                
+                // 日付を文字列に変換（YYYY-MM-DD形式）
+                const todayStr = today.getFullYear() + '-' + 
+                    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(today.getDate()).padStart(2, '0');
+                
+                // ガントチャートを今日の日付にスクロール
+                // 直接日付文字列を指定
+                if (ganttInstance) {
+                    // スクロール位置を今日に設定
+                    const $svg = $(ganttInstance.$svg);
+                    const $parent = $svg.parent();
+                    
+                    // 今日の日付に対応する位置を計算
+                    const unit_width = ganttInstance.options.column_width;
+                    const today_date = new Date(todayStr);
+                    const start_date = ganttInstance.gantt_start;
+                    
+                    // 日付の差分を計算
+                    const diff = Math.floor((today_date - start_date) / (24 * 60 * 60 * 1000));
+                    
+                    // スクロール位置を設定
+                    const scroll_pos = diff * unit_width;
+                    $parent.scrollLeft(scroll_pos);
+                    
+                    // 通知で今日の日付にスクロールしたことを表示
+                    showToast('今日の日付(' + todayStr + ')にスクロールしました', 'info');
+                    
+                    // デバッグ情報をコンソールに出力
+                    console.log('Scrolling to today:', todayStr, 'position:', scroll_pos);
+                } else {
+                    console.error('ガントチャートのインスタンスが見つかりません');
+                }
             });
+            
+            // フルスクリーンボタン
+            let isFullscreen = false;
+            const ganttContainer = document.querySelector('.gantt-container');
+            const btnFullscreen = document.getElementById('btn-fullscreen');
+            
+            btnFullscreen.addEventListener('click', function() {
+                if (!isFullscreen) {
+                    // フルスクリーンモードに切り替え
+                    if (ganttContainer.requestFullscreen) {
+                        ganttContainer.requestFullscreen();
+                    } else if (ganttContainer.mozRequestFullScreen) { // Firefox
+                        ganttContainer.mozRequestFullScreen();
+                    } else if (ganttContainer.webkitRequestFullscreen) { // Chrome, Safari, Opera
+                        ganttContainer.webkitRequestFullscreen();
+                    } else if (ganttContainer.msRequestFullscreen) { // IE/Edge
+                        ganttContainer.msRequestFullscreen();
+                    }
+                    
+                    // ボタンテキストとアイコンを変更
+                    btnFullscreen.querySelector('.fullscreen-text').textContent = '通常表示に戻す';
+                    btnFullscreen.querySelector('.fullscreen-icon').textContent = '⬇️';
+                    
+                    // 通知
+                    showToast('フルスクリーンモードに切り替えました', 'info');
+                } else {
+                    // 通常モードに戻す
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.mozCancelFullScreen) { // Firefox
+                        document.mozCancelFullScreen();
+                    } else if (document.webkitExitFullscreen) { // Chrome, Safari, Opera
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) { // IE/Edge
+                        document.msExitFullscreen();
+                    }
+                    
+                    // ボタンテキストとアイコンを元に戻す
+                    btnFullscreen.querySelector('.fullscreen-text').textContent = 'フルスクリーン';
+                    btnFullscreen.querySelector('.fullscreen-icon').textContent = '🔍';
+                    
+                    showToast('通常表示に戻しました', 'info');
+                }
+                
+                // フルスクリーン状態を切り替え
+                isFullscreen = !isFullscreen;
+            });
+            
+            // フルスクリーン状態変更イベントのリスナー
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+            
+            // フルスクリーン状態変更時の処理
+            function handleFullscreenChange() {
+                // ブラウザのフルスクリーン状態を確認
+                const fullscreenElement = document.fullscreenElement || 
+                                         document.webkitFullscreenElement || 
+                                         document.mozFullScreenElement || 
+                                         document.msFullscreenElement;
+                
+                // フルスクリーン状態を更新
+                isFullscreen = !!fullscreenElement;
+                
+                // ボタンの表示を更新
+                if (isFullscreen) {
+                    btnFullscreen.querySelector('.fullscreen-text').textContent = '通常表示に戻す';
+                    btnFullscreen.querySelector('.fullscreen-icon').textContent = '⬇️';
+                } else {
+                    btnFullscreen.querySelector('.fullscreen-text').textContent = 'フルスクリーン';
+                    btnFullscreen.querySelector('.fullscreen-icon').textContent = '🔍';
+                }
+                
+                // ガントチャートを再描画（フルスクリーン切替時にレイアウトが崩れることがあるため）
+                if (ganttInstance) {
+                    setTimeout(() => {
+                        ganttInstance.render();
+                    }, 100);
+                }
+            }
             
             // タスクバーにダブルクリックイベントを追加（シンプルな実装）
             document.querySelector('#gantt').addEventListener('dblclick', function(event) {
@@ -391,6 +535,8 @@
             // 進捗ハンドルを追加
             addProgressHandles();
             
+            // グローバル変数にガントチャートのインスタンスを保存
+            ganttInstance = gantt;
             return gantt;
         }
         
@@ -491,9 +637,8 @@
                 e.stopPropagation();
             }
             
-            // マウスアップイベントハンドラ
+            // マウスイベントハンドラ
             function onMouseUp(e) {
-                // イベントリスナーを削除
                 document.removeEventListener('mousemove', onMouseMove, true);
                 document.removeEventListener('mouseup', onMouseUp, true);
                 
@@ -509,7 +654,7 @@
                     task.progress = finalProgress;
                 }
                 
-                // イベントの伝播を停止して、タスク全体のドラッグを防止
+                // イベントを停止して、タスク全体のドラッグを防止
                 e.preventDefault();
                 e.stopPropagation();
             }
@@ -690,6 +835,48 @@
         document.getElementById('view-mode').addEventListener('change', function() {
             // 少し遅延を入れて、ガントチャートの再描画後にハンドルを追加
             setTimeout(addProgressHandles, 100);
+        });
+        
+        // 編集モード切替の状態を保持する変数
+        let isEditMode = false;
+        // ガントチャートのインスタンスを保持する変数
+        let ganttInstance = null;
+        
+        // 編集モード切替ボタンのイベントリスナー
+        document.getElementById('btn-toggle-edit').addEventListener('click', function() {
+            // 編集モードを切り替え
+            isEditMode = !isEditMode;
+            
+            // ボタンの表示を更新
+            const button = this;
+            const textElement = button.querySelector('.edit-mode-text');
+            
+            if (isEditMode) {
+                button.classList.add('active');
+                textElement.textContent = '編集モード: ON';
+            } else {
+                button.classList.remove('active');
+                textElement.textContent = '編集モード: OFF';
+            }
+            
+            // ガントチャートのインスタンスが存在する場合
+            if (ganttInstance) {
+                // readonlyオプションを更新
+                ganttInstance.options.readonly = !isEditMode;
+                
+                // ガントチャートを再描画
+                ganttInstance.refresh(window.ganttTasks);
+                
+                // 編集モードに応じてメッセージを表示
+                if (isEditMode) {
+                    showToast('編集モードに切り替えました。タスクをドラッグして日程を変更できます。', 'info');
+                } else {
+                    showToast('閲覧モードに切り替えました。タスクの編集はできません。', 'info');
+                }
+                
+                // 進捗ハンドルを再描画
+                setTimeout(addProgressHandles, 100);
+            }
         });
     </script>
 </body>
