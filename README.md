@@ -25,9 +25,10 @@ Exment用のガントチャートビューです。
   
   ローカル環境を考慮してv2.1.0からCDNを削除し直接参照されるように変更しました。　
 
-![ss1](https://github.com/user-attachments/assets/88be1438-4a9d-4534-a6e6-535c0f2b4e36)
+![ss1](https://github.com/user-attachments/assets/9234e509-3fd6-42fd-a4a2-93023174e1b9)
+
 
 ダブルクリックで詳細を表示
-![ss2](https://github.com/user-attachments/assets/15dbc500-0ac3-42c3-83cc-b21a7b41d344)
 
+![ss2](https://github.com/user-attachments/assets/09bdd8cf-05f8-4a83-a816-7a2c2b2ba869)
 
