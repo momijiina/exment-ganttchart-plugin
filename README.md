@@ -14,6 +14,10 @@ Exment用のガントチャートビューです。
 | 進捗度 | 整数(0~100) |
 | 色 | 赤、青、緑を選択可能なものとだと楽です |
 
+意図しないドラッグを防ぐため編集モードは更新時等はオフなっています。切り替えて使用してください。
+
+![ss1](https://github.com/user-attachments/assets/9234e509-3fd6-42fd-a4a2-93023174e1b9)
+
 # このプラグインには以下が含まれます。
 - **[Exment](https://github.com/exceedone/exment)**
 
@@ -24,9 +28,6 @@ Exment用のガントチャートビューです。
   ~~Frappe GanttのCDNを使用しています。~~
   
   ローカル環境を考慮してv2.1.0からCDNを削除し直接参照されるように変更しました。　
-
-![ss1](https://github.com/user-attachments/assets/9234e509-3fd6-42fd-a4a2-93023174e1b9)
-
 
 ダブルクリックで詳細を表示
 
