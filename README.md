@@ -18,6 +18,10 @@ Exment用のガントチャートビューです。
 
 ![ss1](https://github.com/user-attachments/assets/9234e509-3fd6-42fd-a4a2-93023174e1b9)
 
+ダブルクリックで詳細を表示
+
+![ss2](https://github.com/user-attachments/assets/09bdd8cf-05f8-4a83-a816-7a2c2b2ba869)
+
 # このプラグインには以下が含まれます。
 - **[Exment](https://github.com/exceedone/exment)**
 
@@ -27,9 +31,5 @@ Exment用のガントチャートビューです。
 
   ~~Frappe GanttのCDNを使用しています。~~
   
-  ローカル環境を考慮してv2.1.0からCDNを削除し直接参照されるように変更しました。　
-
-ダブルクリックで詳細を表示
-
-![ss2](https://github.com/user-attachments/assets/09bdd8cf-05f8-4a83-a816-7a2c2b2ba869)
+  ローカル環境を考慮してv2.1.0からCDNを削除し直接参照されるように変更しました。
 
