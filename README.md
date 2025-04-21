@@ -20,7 +20,9 @@ Exment用のガントチャートビューです。
 
 - **[Frappe Gantt](https://github.com/frappe/gantt)**
 
-  Frappe GanttのCDNを使用しています。
+  ~~Frappe GanttのCDNを使用しています。~~
+  
+  ローカル環境を考慮してv2.1.0からCDNを削除し直接参照されるように変更しました。　
 
 ![ss1](https://github.com/user-attachments/assets/88be1438-4a9d-4534-a6e6-535c0f2b4e36)
 
