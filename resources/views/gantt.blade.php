@@ -109,8 +109,6 @@
             opacity: 1;
         }
     </style>
-    <!-- Frappe Gantt CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css">
 </head>
 <body>
     <div class="gantt-toolbar">
@@ -137,11 +135,6 @@
 
     <div class="toast-container"></div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    
-    <!-- Frappe Gantt JS -->
-    <script src="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js"></script>
-    
     <script>
         // jquery.pjaxとlaravel-adminのエラーを防止するためのパッチ
         if (typeof $.pjax === 'undefined') {
