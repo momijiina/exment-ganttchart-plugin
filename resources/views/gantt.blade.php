@@ -133,7 +133,7 @@
         </button>
     </div>
     
-    <div class="gantt-container">
+    <div id="gantt-wrapper">
         <svg id="gantt"></svg>
     </div>
 
