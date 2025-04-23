@@ -5,9 +5,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>ガントチャート</title>
     <style>
+        #gantt-wrapper {
+            width: 100%;
+            overflow-y: hidden;
+            overflow-x: hidden;
+        }
         .gantt-container {
             width: 100%;
-            margin: 20px 0;
             overflow-x: auto;
         }
         .gantt-toolbar {
