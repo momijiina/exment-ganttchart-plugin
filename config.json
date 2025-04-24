@@ -4,7 +4,7 @@
     "description": "ガントチャートを表示します。",
     "uuid": "4880a5c5-eced-60f4-0ac5-d2d672f63bea",
     "author": "momijiina",
-    "version": "2.1.4",
+    "version": "2.1.5",
     "plugin_type": "view",
     "route": [
         {
