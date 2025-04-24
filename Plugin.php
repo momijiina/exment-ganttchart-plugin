@@ -213,6 +213,57 @@ class Plugin extends PluginViewBase
                         $task['custom_class'] = 'gantt-red';
                     } elseif ($color_value === '緑' || $color_value === 'green') {
                         $task['custom_class'] = 'gantt-green';
+                    }elseif (preg_match('/^#([a-f0-9]{3}|[a-f0-9]{6})$/i', $color_value)) {
+                        // カラーコードが直接指定された場合（例: #FF0000）
+                        $hex = ltrim($color_value, '#');
+                    
+                        // 3桁の16進数カラーコードを6桁に変換する (#abc → #aabbcc)
+                        if (strlen($hex) === 3) {
+                            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+                        }
+                        
+                        // RGBに変換
+                        $r = hexdec(substr($hex, 0, 2));
+                        $g = hexdec(substr($hex, 2, 2));
+                        $b = hexdec(substr($hex, 4, 2));
+                        
+                        // 各値を少し暗くする（約20%暗くする）
+                        $darken_factor = 0.8;
+                        $r_dark = max(0, min(255, intval($r * $darken_factor)));
+                        $g_dark = max(0, min(255, intval($g * $darken_factor)));
+                        $b_dark = max(0, min(255, intval($b * $darken_factor)));
+                        
+                        // ユニークなクラス名を生成（重複を避けるため）
+                        $unique_class = 'gantt-custom-' . $hex;
+                        
+                        // カスタムクラスを設定
+                        $task['custom_class'] = $unique_class;
+                        
+                        // 動的CSSスタイルを挿入するための処理を追加
+                        // すでに定義されているカスタム色を追跡する静的配列
+                        static $defined_custom_colors = [];
+                        
+                        // このカラーコードがまだスタイルとして定義されていない場合のみ追加
+                        if (!isset($defined_custom_colors[$hex])) {
+                            $defined_custom_colors[$hex] = true;
+                            
+                            // head内にスタイルを追加
+                            $custom_css = "
+                            <style>
+                            .gantt .bar-wrapper.gantt-custom-{$hex} .bar {
+                                fill: #{$hex};
+                            }
+                            .gantt .bar-wrapper.gantt-custom-{$hex} .bar-progress {
+                                fill: " . sprintf("#%02x%02x%02x", $r_dark, $g_dark, $b_dark) . ";
+                            }
+                            </style>";
+                            
+                            // スタイルをヘッダに追加するためのフックを設定
+                            if (!isset($GLOBALS['custom_gantt_styles'])) {
+                                $GLOBALS['custom_gantt_styles'] = [];
+                            }
+                            $GLOBALS['custom_gantt_styles'][] = $custom_css;
+                        }                    
                     } else {
                         // 青または他の値の場合はデフォルトで青
                         $task['custom_class'] = 'gantt-blue';
