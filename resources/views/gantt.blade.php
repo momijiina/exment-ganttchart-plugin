@@ -334,6 +334,10 @@
                     // シングルクリックでは何もしない（ダブルクリックと区別するため）
                 },
                 on_date_change: function(task, start, end) {
+                    // 編集モードがオフの場合は値を更新しない
+                    if (!isEditMode) {
+                        return;
+                    }
                     updateTask(task, start, end);
                 },
                 on_progress_change: function(task, progress) {
@@ -498,6 +502,10 @@
             
             // 進捗率変更のためのカスタムイベントハンドラを追加
             document.querySelector('#gantt').addEventListener('mousedown', function(event) {
+                    // 編集モードがオフの場合は何も処理しない
+                if (!isEditMode) {
+                    return;
+                }
                 // クリックされた要素が進捗ハンドルかどうかを確認
                 let target = event.target;
                 let isProgressHandle = false;
@@ -581,6 +589,12 @@
         
         // 進捗率ドラッグ処理のセットアップ
         function setupProgressDrag(event, task, barWrapper) {
+            // 編集モードがオフの場合はドラッグを許可しない
+            if (!isEditMode) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
             // 進捗列が設定されていない場合は何もしない
             if (!task.progress_column) {
                 console.warn('Progress column not set for task:', task);
@@ -697,6 +711,11 @@
         
         // タスク日付更新関数
         function updateTask(task, start, end) {
+
+            // 編集モードがオフの場合は更新しない
+            if (!isEditMode) {
+                return;
+            }
             // CSRFトークンの取得
             const token = getCSRFToken();
             
@@ -761,7 +780,11 @@
         }
         
         // タスク進捗更新関数
-        function updateTaskProgress(task, progress) {            
+        function updateTaskProgress(task, progress) {   
+            // 編集モードがオフの場合は更新しない
+            if (!isEditMode) {
+                return;
+            }         
             // 進捗列が設定されていない場合は更新しない
             if (!task.progress_column) {
                 console.warn('Progress column not set for task:', task);
