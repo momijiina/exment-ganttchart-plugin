@@ -171,6 +171,9 @@ class Plugin extends PluginViewBase
             $start_date = array_get($item, 'value.' . $start_date_column->column_name);
             $end_date = array_get($item, 'value.' . $end_date_column->column_name);
             
+            //終了日がなければ開始日を
+            $end_date = $end_date ?: $start_date;
+
             if (empty($start_date) || empty($end_date)) {
                 continue;
             }
@@ -188,7 +191,6 @@ class Plugin extends PluginViewBase
                     $name = $custom_title;
                 }
             }
-            
             // タスクの基本情報を設定
             $task = [
                 'id' => $item->id,
@@ -202,7 +204,6 @@ class Plugin extends PluginViewBase
                 'start_column' => $start_date_column->column_name,
                 'end_column' => $end_date_column->column_name
             ];
-            
             // 色の設定
             if ($color_column) {
                 $color_value = array_get($item, 'value.' . $color_column->column_name);
