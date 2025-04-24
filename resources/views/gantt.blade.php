@@ -164,7 +164,36 @@
         }
         
         // タスクデータをPHPから取得してJavaScriptで利用できるようにする
-        window.ganttTasks = @json($values);
+        //window.ganttTasks = @json($values); //旧取得方法
+        // 終了日がなければ開始日を取得
+        
+        window.ganttTasks = @json($values).map(task => {
+            // 開始日のフォーマットを修正
+            if (task.start && task.start.includes(' ')) {
+                task.start = task.start.replace(' ', 'T'); // スペースを'T'に置換
+            }
+
+            // 終了日のフォーマットを修正
+            if (task.end && task.end.includes(' ')) {
+                task.end = task.end.replace(' ', 'T'); // スペースを'T'に置換
+            }
+
+            // 開始日が無効な場合はエラーログ
+            if (!task.start || isNaN(Date.parse(task.start))) {
+                console.error('Invalid start date for task:', task);
+                return null; // 不正なタスクを無視
+            }
+
+            // 終了日が無効な場合は開始日に基づいて設定
+            if (!task.end || isNaN(Date.parse(task.end))) {
+                const startDate = new Date(task.start);
+                const endDate = new Date(startDate);
+                endDate.setHours(23, 59, 59); // 終了日を23:59:59に設定
+                task.end = endDate.toISOString();
+            }
+
+            return task;
+        }).filter(task => task !== null); // 不正なタスクを除外
         
         // CSRFトークンの取得
         function getCSRFToken() {
