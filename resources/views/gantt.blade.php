@@ -857,6 +857,29 @@
             setTimeout(addProgressHandles, 100);
         });
         
+        // スロットリング関数
+        function throttle(func, delay) {
+            let lastCall = 0;
+            return function(...args) {
+                const now = new Date().getTime();
+                if (now - lastCall >= delay) {
+                    lastCall = now;
+                    func(...args);
+                }
+            };
+        }
+
+        // ガントチャートのスクロールイベント（マウスホイール）に対応するハンドルの再描画
+        const ganttWrapper = document.getElementById('gantt-wrapper');
+        if (ganttWrapper) {
+            // スロットリングを適用して200msごとに実行
+            const throttledAddProgressHandles = throttle(function() {
+                addProgressHandles();
+            }, 200);
+            
+            ganttWrapper.addEventListener('wheel', throttledAddProgressHandles);
+        }
+
         // 編集モード切替の状態を保持する変数
         let isEditMode = false;
         // ガントチャートのインスタンスを保持する変数
