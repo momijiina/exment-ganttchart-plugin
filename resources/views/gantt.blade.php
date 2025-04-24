@@ -113,6 +113,12 @@
             opacity: 1;
         }
     </style>
+    <!-- カラーコードによるカスタムスタイル -->
+    @if(isset($GLOBALS['custom_gantt_styles']))
+        @foreach($GLOBALS['custom_gantt_styles'] as $style)
+            {!! $style !!}
+        @endforeach
+    @endif
 </head>
 <body>
     <div class="gantt-toolbar">
