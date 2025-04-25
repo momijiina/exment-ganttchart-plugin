@@ -92,8 +92,8 @@ class Plugin extends PluginViewBase
                 ->help('タスクの終了日となる列を選択してください。カスタム列種類「日付」「日時」が候補に表示されます。');
                 
             $form->select('progress_column', '進捗率列')
-                ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL])->pluck('column_view_name', 'id'))
-                ->help('タスクの進捗率を表す列を選択してください。カスタム列種類「整数」「小数」が候補に表示されます。');
+                ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL,ColumnType::SELECT_VALTEXT])->pluck('column_view_name', 'id'))
+                ->help('タスクの進捗率を表す列を選択してください。カスタム列種類「整数」「小数」「選択肢(値・見出し)」が候補に表示されます。');
                 
             $form->select('color_column', '色指定列')
                 ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
