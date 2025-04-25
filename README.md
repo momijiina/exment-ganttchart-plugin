@@ -29,7 +29,13 @@ Exment用のガントチャートビューです。
 
 例
 ![ss4](https://github.com/user-attachments/assets/7483be7d-7cba-4cbd-9580-1f00d5552284)
-
+# 土日の追加ハイライト方法
+gantt.blade.phpのstyleでいいので以下を追加
+```style:add.css
+        .holiday-highlight {
+            fill: #dcdcdc!important; /* 初期だと薄い為 */
+        }
+```
 
 # このプラグインには以下が含まれます。
 - **[Exment](https://github.com/exceedone/exment)**
