@@ -164,7 +164,7 @@
         }
         
         // タスクデータをPHPから取得してJavaScriptで利用できるようにする
-        window.ganttTasks = @json($values);     
+        window.ganttTasks = @json($values);
         
         // CSRFトークンの取得
         function getCSRFToken() {
