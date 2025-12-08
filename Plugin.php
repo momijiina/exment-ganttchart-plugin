@@ -1,35 +1,19 @@
 <?php
 
-namespace App\Plugins\GanttChart;
+namespace App\Plugins\CustomGanttChart;
 
 use Exceedone\Exment\Services\Plugin\PluginViewBase;
 use Exceedone\Exment\Enums\ColumnType;
 use Exceedone\Exment\Model\CustomColumn;
-use Exceedone\Exment\Model\CustomTable;
 
 class Plugin extends PluginViewBase
 {
-    // プラグイン独自の設定を追加する
-    protected $useCustomOption = true;
-
     /**
-     * 一覧表示時のメソッド。"grid"固定
-     */
-    public function grid()
-    {
-        $values = $this->values();
-        
-        // ビューを呼び出し
-        return $this->pluginView('gantt', ['values' => $values]);
-    }
-
-    /**
-     * このプラグイン独自のエンドポイント
+     * タスク更新API
      */
     public function update()
     {
         try {
-            
             // リクエストからデータを取得
             $id = request()->get('id');
             $table_name = request()->get('table_name');
@@ -39,7 +23,7 @@ class Plugin extends PluginViewBase
                 return response()->json(['error' => 'Missing required parameters'], 400);
             }
             
-            $custom_table = CustomTable::getEloquent($table_name);
+            $custom_table = \Exceedone\Exment\Model\CustomTable::getEloquent($table_name);
             if (!$custom_table) {
                 return response()->json(['error' => 'Table not found: ' . $table_name], 404);
             }
@@ -65,17 +49,56 @@ class Plugin extends PluginViewBase
             ], 500);
         }
     }
+    
+    /**
+     * ガントチャートビューのメイン表示
+     *
+     * @return \Illuminate\View\View
+     */
+    public function grid()
+    {
+        $data = $this->getGanttData();
+        
+        // HTMLファイルを読み込み
+        $htmlPath = __DIR__ . '/resources/assets/gantt.html';
+        $htmlContent = '';
+        
+        if (file_exists($htmlPath)) {
+            $htmlContent = file_get_contents($htmlPath);
+            
+            // ガントデータをJSON化
+            $ganttDataJson = json_encode(
+                $data, 
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | 
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+            
+            // HTMLにデータを注入
+            $htmlContent = preg_replace(
+                '/<div id="gantt-data-config"[^>]*data-config=\'[^\']*\'[^>]*><\/div>/',
+                '<div id="gantt-data-config" style="display:none;" data-config=\'' . 
+                htmlspecialchars($ganttDataJson, ENT_QUOTES | ENT_HTML5, 'UTF-8') . 
+                '\'></div>',
+                $htmlContent
+            );
+        } else {
+            $htmlContent = '<h1>Error: ガントチャートのファイルが見つかりません。</h1>';
+        }
+        
+        return $this->pluginView('gantt', [
+            'htmlContent' => $htmlContent,
+        ]);
+    }
 
     /**
-     * ビュー設定画面で表示するオプション
-     * Set view option form for setting
+     * ビューオプション設定フォーム
      *
-     * @param Form $form
+     * @param $form
      * @return void
      */
     public function setViewOptionForm($form)
     {
-        // 独自設定を追加する場合
+        // 独自設定を追加
         $form->embeds('custom_options', '詳細設定', function($form) {
             $form->select('title_column', 'タイトル列')
                 ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
@@ -92,37 +115,35 @@ class Plugin extends PluginViewBase
                 ->help('タスクの終了日となる列を選択してください。カスタム列種類「日付」「日時」が候補に表示されます。');
                 
             $form->select('progress_column', '進捗率列')
-                ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL,ColumnType::SELECT_VALTEXT])->pluck('column_view_name', 'id'))
+                ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL, ColumnType::SELECT_VALTEXT])->pluck('column_view_name', 'id'))
                 ->help('タスクの進捗率を表す列を選択してください。カスタム列種類「整数」「小数」「選択肢(値・見出し)」が候補に表示されます。');
                 
             $form->select('color_column', '色指定列')
                 ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
-                ->help('タスクの色を指定する列を選択してください。列の値が「赤」「青」「緑」の場合、対応する色でタスクが表示されます。それ以外の値や値がない場合は青色で表示されます。');
+                ->help('タスクの色を指定する列を選択してください。列の値が「赤」「青」「緑」「黄」「紫」の場合、対応する色でタスクが表示されます。それ以外の値や値がない場合は青色で表示されます。');
+                
+            $form->radio('highlight_weekends', '土日をハイライト')
+                ->options([
+                    '1' => 'する',
+                    '0' => 'しない',
+                ])
+                ->default('0')
+                ->help('土日の列を薄い赤色でハイライト表示します。');
         });
         
-        // フィルタ(絞り込み)の設定を行う場合
+        // フィルタ(絞り込み)の設定
         static::setFilterFields($form, $this->custom_table);
         
-        // 並べ替えの設定を行う場合
+        // 並べ替えの設定
         static::setSortFields($form, $this->custom_table);
     }
 
     /**
-     * プラグインの編集画面で設定するオプション。全ビュー共通で設定する
+     * ガントチャート用のデータを取得
      *
-     * @param [type] $form
-     * @return void
+     * @return array
      */
-    public function setCustomOptionForm(&$form)
-    {
-        // 必要な場合、追加
-        // $form->text('access_key', 'アクセスキー')
-        //     ->help('アクセスキーを入力してください。');
-    }
-
-    // 以下、ガントチャートで必要な処理 ----------------------------------------------------
-    
-    protected function values()
+    protected function getGanttData()
     {
         $query = $this->custom_table->getValueQuery();
         
@@ -138,146 +159,132 @@ class Plugin extends PluginViewBase
             $items = $items->merge($values);
         });
         
-        $tasks = $this->getTaskItems($items);
+        // カラム情報を取得
+        $titleColumnId = $this->custom_view->getCustomOption('title_column');
+        $startDateColumnId = $this->custom_view->getCustomOption('start_date_column');
+        $endDateColumnId = $this->custom_view->getCustomOption('end_date_column');
+        $progressColumnId = $this->custom_view->getCustomOption('progress_column');
+        $colorColumnId = $this->custom_view->getCustomOption('color_column');
         
-        return $tasks;
-    }
-    
-    protected function getTaskItems($items)
-    {
-        $start_date_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('start_date_column'));
-        $end_date_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('end_date_column'));
-        $progress_column = null;
-        $title_column = null;
-        $color_column = null;
-        
-        if ($this->custom_view->getCustomOption('progress_column')) {
-            $progress_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('progress_column'));
+        if (!$startDateColumnId || !$endDateColumnId) {
+            return [
+                'tasks' => [],
+                'error' => '開始日列と終了日列は必須です。ビュー設定で列を指定してください。'
+            ];
         }
         
-        if ($this->custom_view->getCustomOption('title_column')) {
-            $title_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('title_column'));
-        }
-        
-        if ($this->custom_view->getCustomOption('color_column')) {
-            $color_column = CustomColumn::getEloquent($this->custom_view->getCustomOption('color_column'));
-        }
-        
-        $update_url = $this->plugin->getFullUrl('update');
+        $titleColumn = $titleColumnId ? CustomColumn::find($titleColumnId) : null;
+        $startDateColumn = CustomColumn::find($startDateColumnId);
+        $endDateColumn = CustomColumn::find($endDateColumnId);
+        $progressColumn = $progressColumnId ? CustomColumn::find($progressColumnId) : null;
+        $colorColumn = $colorColumnId ? CustomColumn::find($colorColumnId) : null;
         
         $tasks = [];
         
         foreach ($items as $item) {
-            $start_date = array_get($item, 'value.' . $start_date_column->column_name);
-            $end_date = array_get($item, 'value.' . $end_date_column->column_name);
+            $startDate = $item->getValue($startDateColumn->column_name);
+            $endDate = $item->getValue($endDateColumn->column_name);
             
-            //終了日がなければ開始日を
-            $end_date = $end_date ?: $start_date;
-
-            if (empty($start_date) || empty($end_date)) {
+            // 日付が設定されていない場合はスキップ
+            if (!$startDate || !$endDate) {
                 continue;
             }
             
+            $title = $titleColumn 
+                ? $item->getValue($titleColumn->column_name, true) 
+                : $item->getLabel();
+                
             $progress = 0;
-            if ($progress_column) {
-                $progress = (int)array_get($item, 'value.' . $progress_column->column_name, 0);
-            }
-            
-            // タイトル列が設定されている場合はその値を使用、そうでなければデフォルトのラベルを使用
-            $name = $item->getLabel();
-            if ($title_column) {
-                $custom_title = array_get($item, 'value.' . $title_column->column_name);
-                if (!empty($custom_title)) {
-                    $name = $custom_title;
-                }
-            }
-            // タスクの基本情報を設定
-            $task = [
-                'id' => $item->id,
-                'name' => $name,
-                'start' => $start_date,
-                'end' => $end_date,
-                'progress' => $progress,
-                'table_name' => $this->custom_table->table_name,
-                'update_url' => $update_url,
-                'progress_column' => $progress_column ? $progress_column->column_name : '',
-                'start_column' => $start_date_column->column_name,
-                'end_column' => $end_date_column->column_name
-            ];
-            // 色の設定
-            if ($color_column) {
-                $color_value = array_get($item, 'value.' . $color_column->column_name);
-                if (!empty($color_value)) {
-                    // 色の値に基づいてCSSクラスを設定
-                    $color_value = trim(strtolower($color_value));
-                    if ($color_value === '赤' || $color_value === 'red') {
-                        $task['custom_class'] = 'gantt-red';
-                    } elseif ($color_value === '緑' || $color_value === 'green') {
-                        $task['custom_class'] = 'gantt-green';
-                    }elseif (preg_match('/^#([a-f0-9]{3}|[a-f0-9]{6})$/i', $color_value)) {
-                        // カラーコードが直接指定された場合（例: #FF0000）
-                        $hex = ltrim($color_value, '#');
-                    
-                        // 3桁の16進数カラーコードを6桁に変換する (#abc → #aabbcc)
-                        if (strlen($hex) === 3) {
-                            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
-                        }
-                        
-                        // RGBに変換
-                        $r = hexdec(substr($hex, 0, 2));
-                        $g = hexdec(substr($hex, 2, 2));
-                        $b = hexdec(substr($hex, 4, 2));
-                        
-                        // 各値を少し暗くする（約20%暗くする）
-                        $darken_factor = 0.8;
-                        $r_dark = max(0, min(255, intval($r * $darken_factor)));
-                        $g_dark = max(0, min(255, intval($g * $darken_factor)));
-                        $b_dark = max(0, min(255, intval($b * $darken_factor)));
-                        
-                        // ユニークなクラス名を生成（重複を避けるため）
-                        $unique_class = 'gantt-custom-' . $hex;
-                        
-                        // カスタムクラスを設定
-                        $task['custom_class'] = $unique_class;
-                        
-                        // 動的CSSスタイルを挿入するための処理を追加
-                        // すでに定義されているカスタム色を追跡する静的配列
-                        static $defined_custom_colors = [];
-                        
-                        // このカラーコードがまだスタイルとして定義されていない場合のみ追加
-                        if (!isset($defined_custom_colors[$hex])) {
-                            $defined_custom_colors[$hex] = true;
-                            
-                            // head内にスタイルを追加
-                            $custom_css = "
-                            <style>
-                            .gantt .bar-wrapper.gantt-custom-{$hex} .bar {
-                                fill: #{$hex};
-                            }
-                            .gantt .bar-wrapper.gantt-custom-{$hex} .bar-progress {
-                                fill: " . sprintf("#%02x%02x%02x", $r_dark, $g_dark, $b_dark) . ";
-                            }
-                            </style>";
-                            
-                            // スタイルをヘッダに追加するためのフックを設定
-                            if (!isset($GLOBALS['custom_gantt_styles'])) {
-                                $GLOBALS['custom_gantt_styles'] = [];
-                            }
-                            $GLOBALS['custom_gantt_styles'][] = $custom_css;
-                        }                    
-                    } else {
-                        // 青または他の値の場合はデフォルトで青
-                        $task['custom_class'] = 'gantt-blue';
+            if ($progressColumn) {
+                $progressValue = $item->getValue($progressColumn->column_name);
+                if (is_numeric($progressValue)) {
+                    $progress = floatval($progressValue);
+                    // 進捗率が100を超えている場合は100にする
+                    if ($progress > 100) {
+                        $progress = 100;
                     }
-                } else {
-                    // 値がない場合はデフォルトで青
-                    $task['custom_class'] = 'gantt-blue';
                 }
             }
             
-            $tasks[] = $task;
+            $color = '#4F46E5'; // デフォルトは青
+            if ($colorColumn) {
+                $colorValue = $item->getValue($colorColumn->column_name, true);
+                $color = $this->getColorFromValue($colorValue);
+            }
+            
+            $tasks[] = [
+                'id' => $item->id,
+                'title' => $title,
+                'start' => $startDate,
+                'end' => $endDate,
+                'progress' => $progress,
+                'color' => $color,
+                'url' => $item->getUrl(),
+                'tableName' => $this->custom_table->table_name,
+                'startColumn' => $startDateColumn->column_name,
+                'endColumn' => $endDateColumn->column_name,
+                'progressColumn' => $progressColumn ? $progressColumn->column_name : null,
+            ];
         }
         
-        return $tasks;
+        // 土日ハイライト設定を取得
+        $highlightWeekends = $this->custom_view->getCustomOption('highlight_weekends');
+        
+        return [
+            'tasks' => $tasks,
+            'error' => null,
+            'highlightWeekends' => (bool)$highlightWeekends
+        ];
+    }
+
+    /**
+     * 色名から色コードを取得
+     *
+     * @param string $colorValue
+     * @return string
+     */
+    protected function getColorFromValue($colorValue)
+    {
+        $colorValue = mb_strtolower($colorValue);
+        
+        $colorMap = [
+            '赤' => '#EF4444',
+            'あか' => '#EF4444',
+            'red' => '#EF4444',
+            '青' => '#4F46E5',
+            'あお' => '#4F46E5',
+            'blue' => '#4F46E5',
+            '緑' => '#10B981',
+            'みどり' => '#10B981',
+            'green' => '#10B981',
+            '黄' => '#F59E0B',
+            '黄色' => '#F59E0B',
+            'きいろ' => '#F59E0B',
+            'yellow' => '#F59E0B',
+            '紫' => '#9333EA',
+            'むらさき' => '#9333EA',
+            'purple' => '#9333EA',
+            'オレンジ' => '#F97316',
+            'orange' => '#F97316',
+            'ピンク' => '#EC4899',
+            'pink' => '#EC4899',
+            '灰色' => '#6B7280',
+            'はいいろ' => '#6B7280',
+            'gray' => '#6B7280',
+            'grey' => '#6B7280',
+        ];
+        
+        // 色の指定があればその色を返す
+        if (isset($colorMap[$colorValue])) {
+            return $colorMap[$colorValue];
+        }
+        
+        // カラーコード形式（#で始まる）の場合はそのまま返す
+        if (preg_match('/^#[0-9A-Fa-f]{6}$/', $colorValue)) {
+            return $colorValue;
+        }
+        
+        // デフォルトは青
+        return '#4F46E5';
     }
 }
