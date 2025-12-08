@@ -4,7 +4,7 @@
     "description": "独自実装のガントチャートビュープラグインです。タスクの開始日・終了日・進捗率を視覚的に表示します。",
     "uuid": "a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
     "author": "momijiina",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "plugin_type": "view",
     "route": [
         {
