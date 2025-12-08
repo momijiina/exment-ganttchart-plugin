@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カスタムガントチャート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        window.process = { env: { NODE_ENV: 'production' } };
+        
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            background: #f9fafb;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c7c7c7;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .gantt-container {
+            display: flex;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+            background: white;
+        }
+
+        .gantt-sidebar {
+            width: 280px;
+            border-right: 2px solid #e5e7eb;
+            overflow-y: hidden;
+            overflow-x: hidden;
+            background: #f9fafb;
+            flex-shrink: 0;
+        }
+
+        .gantt-chart {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: auto;
+            background: white;
+        }
+        
+        .gantt-body {
+            background: white;
+            min-width: 100%;
+        }
+        
+        .gantt-sidebar-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .gantt-sidebar-content {
+            overflow-y: hidden;
+        }
+
+        .gantt-header {
+            position: sticky;
+            top: 0;
+            background: #f9fafb !important;
+            z-index: 100;
+        }
+
+        .gantt-month-row {
+            display: flex;
+            border-bottom: 1px solid #d1d5db;
+            background: #f3f4f6 !important;
+            height: 40px;
+        }
+
+        .gantt-month-cell {
+            padding: 8px;
+            text-align: center;
+            border-right: 1px solid #d1d5db;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #374151;
+            box-sizing: border-box;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f3f4f6 !important;
+        }
+
+        .gantt-date-row {
+            display: flex;
+            border-bottom: 2px solid #e5e7eb;
+            height: 70px;
+            background: #f9fafb !important;
+        }
+
+        .gantt-date-cell {
+            min-width: 50px;
+            width: 50px;
+            padding: 10px 6px;
+            text-align: center;
+            border-right: 1px solid #e5e7eb;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 0.8rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            height: 70px;
+            flex-shrink: 0;
+        }
+
+        .gantt-date-cell {
+            background: #f9fafb !important;
+        }
+        
+        .gantt-date-cell.weekend {
+            background: #fef3f2 !important;
+        }
+
+        .gantt-date-cell.today {
+            background: #dbeafe;
+            font-weight: 700;
+            border-left: 2px solid #3b82f6;
+            border-right: 2px solid #3b82f6;
+        }
+
+        .gantt-row {
+            display: flex;
+            min-height: 56px;
+            height: 56px;
+            align-items: center;
+            position: relative;
+            background: white !important;
+            min-width: fit-content;
+        }
+
+        .gantt-row:hover {
+            background: #f9fafb !important;
+        }
+        
+        .gantt-row:hover .gantt-grid-line {
+            background: #f9fafb;
+        }
+
+        .gantt-task-name {
+            padding: 14px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.9rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-height: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            background: #f9fafb;
+            cursor: pointer;
+            transition: background 0.2s;
+            box-sizing: border-box;
+            border-bottom: 1px solid #e5e7eb !important;
+        }
+
+        .gantt-task-name:hover {
+            background: #f3f4f6;
+        }
+
+        .gantt-bar-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+
+        .gantt-bar {
+            position: absolute;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 0.8rem;
+            color: white;
+            font-weight: 600;
+            overflow: visible;
+            white-space: nowrap;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .gantt-bar:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            z-index: 15;
+        }
+        
+        .gantt-bar-inner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 6px 0 0 6px;
+            transition: width 0.3s ease;
+        }
+        
+        .gantt-bar-label {
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .gantt-grid-line {
+            min-width: 50px;
+            width: 50px;
+            height: 56px;
+            border-right: 1px solid #e5e7eb;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            background: white;
+        }
+
+        .gantt-grid-line.weekend {
+            background: #fef3f2 !important;
+        }
+
+        .gantt-grid-line.weekend-highlight {
+            background: #f3f4f6 !important;
+        }
+
+        .gantt-grid-line.today {
+            background: #dbeafe !important;
+            border-left: 2px solid #3b82f6;
+            border-right: 2px solid #3b82f6;
+        }
+
+        .error-message {
+            padding: 20px;
+            margin: 20px;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #991b1b;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4F46E5;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            animation: slideIn 0.3s ease-out;
+            font-weight: 500;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* モーダル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 28px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .top-buttons {
+            position: fixed;
+            top: 5px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .today-btn {
+            background: rgba(79, 70, 229, 0.9);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .today-btn:hover {
+            background: rgba(67, 56, 202, 0.95);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .fullscreen-btn {
+            background: rgba(79, 70, 229, 0.9);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+        
+        .fullscreen-btn:hover {
+            background: rgba(67, 56, 202, 0.95);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        body.fullscreen {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        body.fullscreen .gantt-container {
+            height: 100vh !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-buttons">
+        <button class="today-btn" onclick="scrollToToday()" title="今日の日付に移動">
+            今日
+        </button>
+        <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="フルスクリーン切り替え">
+            <svg id="fullscreen-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+        </button>
+    </div>
+    
+    <div id="app">
+        <div class="loading">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <div id="gantt-data-config" style="display:none;" data-config='{!! htmlspecialchars($ganttDataJson, ENT_QUOTES, 'UTF-8') !!}'></div>
+
+    <script>
+        // トースト通知を表示
+        function showToast(message, isError = false) {
+            const toast = document.createElement('div');
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 今日の日付にスクロール
+        function scrollToToday() {
+            const todayCell = document.querySelector('.gantt-date-cell.today');
+            if (todayCell) {
+                const ganttChart = document.getElementById('gantt-chart');
+                if (ganttChart) {
+                    const cellLeft = todayCell.offsetLeft;
+                    const chartWidth = ganttChart.offsetWidth;
+                    const cellWidth = todayCell.offsetWidth;
+                    const scrollPosition = cellLeft - (chartWidth / 2) + (cellWidth / 2);
+                    
+                    ganttChart.scrollTo({
+                        left: Math.max(0, scrollPosition),
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }
+        
+        // フルスクリーン切り替え
+        function toggleFullscreen() {
+            const body = document.body;
+            const icon = document.getElementById('fullscreen-icon');
+            
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().then(() => {
+                    body.classList.add('fullscreen');
+                    icon.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
+                }).catch(err => {
+                    console.error('フルスクリーンエラー:', err);
+                });
+            } else {
+                document.exitFullscreen().then(() => {
+                    body.classList.remove('fullscreen');
+                    icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+                });
+            }
+        }
+        
+        // フルスクリーン状態の監視
+        document.addEventListener('fullscreenchange', () => {
+            const body = document.body;
+            const icon = document.getElementById('fullscreen-icon');
+            if (!document.fullscreenElement) {
+                body.classList.remove('fullscreen');
+                icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+            }
+        });
+        
+        // データ読み込み
+        let ganttData = { tasks: [], error: null, highlightWeekends: false };
+        try {
+            const configDiv = document.getElementById('gantt-data-config');
+            if (configDiv) {
+                const configAttr = configDiv.getAttribute('data-config');
+                if (configAttr) {
+                    ganttData = JSON.parse(configAttr);
+                }
+            }
+        } catch (e) {
+            console.error('ガントチャートデータの読み込みに失敗しました:', e);
+            ganttData = { tasks: [], error: 'データの読み込みに失敗しました。', highlightWeekends: false };
+        }
+
+        class GanttChart {
+            constructor(data) {
+                this.tasks = data.tasks || [];
+                this.error = data.error;
+                this.highlightWeekends = data.highlightWeekends || false;
+                this.currentDate = new Date();
+                this.init();
+            }
+
+            init() {
+                this.render();
+                this.attachEvents();
+            }
+
+            render() {
+                const app = document.getElementById('app');
+                
+                if (this.error) {
+                    app.innerHTML = `
+                        <div class="error-message">
+                            <h3 style="font-weight: 600; margin-bottom: 8px;">エラー</h3>
+                            <p>${this.error}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (this.tasks.length === 0) {
+                    app.innerHTML = `
+                        <div class="error-message">
+                            <h3 style="font-weight: 600; margin-bottom: 8px;">データがありません</h3>
+                            <p>表示するタスクがありません。データを追加するか、フィルタ条件を確認してください。</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                app.innerHTML = this.renderGantt();
+            }
+
+            renderGantt() {
+                // 日付範囲を計算
+                const dates = this.calculateDateRange();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // 曜日名
+                const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                
+                // 月ごとのグループを作成
+                const monthGroups = [];
+                let currentMonth = null;
+                let currentGroup = null;
+                
+                dates.forEach(date => {
+                    const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+                    if (monthKey !== currentMonth) {
+                        if (currentGroup) {
+                            monthGroups.push(currentGroup);
+                        }
+                        currentMonth = monthKey;
+                        currentGroup = {
+                            year: date.getFullYear(),
+                            month: date.getMonth() + 1,
+                            count: 1
+                        };
+                    } else {
+                        currentGroup.count++;
+                    }
+                });
+                if (currentGroup) {
+                    monthGroups.push(currentGroup);
+                }
+                
+                // ヘッダー生成（月行）
+                let headerHtml = '<div class="gantt-header">';
+                headerHtml += '<div class="gantt-month-row">';
+                monthGroups.forEach(group => {
+                    const width = group.count * 50;
+                    headerHtml += `
+                        <div class="gantt-month-cell" style="min-width: ${width}px; width: ${width}px; background: #f3f4f6;">
+                            ${group.year}年${group.month}月
+                        </div>
+                    `;
+                });
+                headerHtml += '</div>';
+                
+                // ヘッダー生成（日付行）
+                headerHtml += '<div class="gantt-date-row">';
+                dates.forEach(date => {
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    const isToday = date.getTime() === today.getTime();
+                    let className = 'gantt-date-cell';
+                    if (isWeekend) className += ' weekend';
+                    if (isToday) className += ' today';
+                    
+                    const dayName = dayNames[date.getDay()];
+                    
+                    headerHtml += `
+                        <div class="${className}">
+                            <div style="font-weight: 600; font-size: 0.95rem;">${date.getDate()}</div>
+                            <div style="font-size: 0.7rem; margin-top: 2px; color: #6b7280;">${dayName}</div>
+                        </div>
+                    `;
+                });
+                headerHtml += '</div>';
+                headerHtml += '</div>';
+                
+                // タスク行を生成
+                let tasksHtml = '';
+                let sidebarHtml = '';
+                
+                this.tasks.forEach(task => {
+                    const startDate = new Date(task.start);
+                    startDate.setHours(0, 0, 0, 0);
+                    const endDate = new Date(task.end);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    // サイドバー（タスク名）
+                    sidebarHtml += `
+                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}">
+                            <span class="flex-1">${task.title}</span>
+                            ${task.progress > 0 ? `<span style="font-size: 0.75rem; color: #6b7280; margin-left: 8px;">${Math.round(task.progress)}%</span>` : ''}
+                        </div>
+                    `;
+                    
+                    // グリッド行（コンテナ）
+                    const totalWidth = dates.length * 50;
+                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; background: white;">`;
+                    
+                    // グリッド背景を先に描画
+                    dates.forEach((date, index) => {
+                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                        const isToday = date.getTime() === today.getTime();
+                        let gridClass = 'gantt-grid-line';
+                        if (isWeekend && this.highlightWeekends) gridClass += ' weekend-highlight';
+                        if (isToday) gridClass += ' today';
+                        
+                        let bgColor = 'white';
+                        if (isWeekend && this.highlightWeekends) bgColor = '#f3f4f6';
+                        if (isToday) bgColor = '#dbeafe';
+                        
+                        tasksHtml += `<div class="${gridClass}" style="background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
+                    });
+                    
+                    // バーを描画
+                    let barStartIndex = -1;
+                    let barWidth = 0;
+                    
+                    dates.forEach((date, index) => {
+                        if (date.getTime() >= startDate.getTime() && date.getTime() <= endDate.getTime()) {
+                            if (barStartIndex === -1) {
+                                barStartIndex = index;
+                            }
+                            barWidth++;
+                        }
+                    });
+                    
+                    if (barStartIndex !== -1 && barWidth > 0) {
+                        const leftPosition = barStartIndex * 50 + 4;
+                        const barWidthPx = barWidth * 50 - 8;
+                        const progressWidth = (barWidthPx * task.progress) / 100;
+                        
+                        const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                        
+                        tasksHtml += `
+                            <div class="gantt-bar" 
+                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; background-color: ${task.color};"
+                                 data-task='${taskJson}'>
+                                <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
+                                <span class="gantt-bar-label">${task.title}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    tasksHtml += '</div>';
+                });
+                
+                // サイドバーのヘッダー高さを計算（月行 + 日付行）
+                // 月行と日付行の高さを厳密に取得
+                const monthCellHeight = 40; // padding 8px * 2 + テキスト高さ
+                const dateCellHeight = 70; // padding 10px * 2 + テキスト高さ
+                const headerHeight = monthCellHeight + dateCellHeight;
+                
+                return `
+                    <div class="gantt-container">
+                        <div class="gantt-sidebar">
+                            <div class="gantt-sidebar-header" style="height: ${headerHeight}px; display: flex; align-items: center; padding: 0 14px; border-bottom: 2px solid #e5e7eb; box-sizing: border-box;">
+                                <span style="font-weight: 600; font-size: 0.95rem;">タスク名</span>
+                            </div>
+                            <div class="gantt-sidebar-content">
+                                ${sidebarHtml}
+                            </div>
+                        </div>
+                        <div class="gantt-chart" id="gantt-chart">
+                            ${headerHtml}
+                            <div class="gantt-body" style="background: white; min-width: ${dates.length * 50}px;">
+                                ${tasksHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            calculateDateRange() {
+                if (this.tasks.length === 0) return [];
+                
+                let minDate = new Date(this.tasks[0].start);
+                let maxDate = new Date(this.tasks[0].end);
+                
+                this.tasks.forEach(task => {
+                    const start = new Date(task.start);
+                    const end = new Date(task.end);
+                    if (start < minDate) minDate = start;
+                    if (end > maxDate) maxDate = end;
+                });
+                
+                // 前後に余裕を持たせる
+                minDate.setDate(minDate.getDate() - 3);
+                maxDate.setDate(maxDate.getDate() + 3);
+                
+                // クラスのプロパティとして保存
+                this.minDate = minDate;
+                this.maxDate = maxDate;
+                
+                minDate.setHours(0, 0, 0, 0);
+                maxDate.setHours(0, 0, 0, 0);
+                
+                const dates = [];
+                const current = new Date(minDate);
+                
+                while (current <= maxDate) {
+                    dates.push(new Date(current));
+                    current.setDate(current.getDate() + 1);
+                }
+                
+                return dates;
+            }
+
+            attachEvents() {
+                // サイドバーのスクロール連動
+                const ganttChart = document.getElementById('gantt-chart');
+                const sidebarContent = document.querySelector('.gantt-sidebar-content');
+                
+                if (ganttChart && sidebarContent) {
+                    ganttChart.addEventListener('scroll', () => {
+                        sidebarContent.style.transform = `translateY(-${ganttChart.scrollTop}px)`;
+                    });
+                }
+
+                // イベントリスナーを設定
+                this.attachEventListeners();
+            }
+
+            attachEventListeners() {
+                // タスク名クリックでモーダル表示
+                document.querySelectorAll('.task-name-link').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const url = e.currentTarget.getAttribute('data-url');
+                        
+                        // タスクデータを探す
+                        const task = this.tasks.find(t => t.url === url);
+                        if (task) {
+                            this.showTaskDetail(task);
+                        }
+                    });
+                });
+
+                // バークリックでモーダル表示
+                document.querySelectorAll('.gantt-bar').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        const taskData = e.currentTarget.getAttribute('data-task');
+                        if (taskData) {
+                            const task = JSON.parse(taskData.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+                            this.showTaskDetail(task);
+                        }
+                    });
+
+                    // ツールチップ
+                    el.addEventListener('mouseenter', (e) => {
+                        const taskData = e.currentTarget.getAttribute('data-task');
+                        if (taskData) {
+                            const task = JSON.parse(taskData.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+                            const tooltip = document.createElement('div');
+                            tooltip.className = 'tooltip';
+                            tooltip.innerHTML = `
+                                <div style="font-weight: 600; margin-bottom: 4px;">${task.title}</div>
+                                <div style="font-size: 0.75rem;">開始: ${task.start}</div>
+                                <div style="font-size: 0.75rem;">終了: ${task.end}</div>
+                                <div style="font-size: 0.75rem;">進捗: ${Math.round(task.progress)}%</div>
+                            `;
+                            document.body.appendChild(tooltip);
+                            
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            tooltip.style.left = `${rect.left + rect.width / 2 - tooltip.offsetWidth / 2}px`;
+                            tooltip.style.top = `${rect.top - tooltip.offsetHeight - 8}px`;
+                            
+                            e.currentTarget._tooltip = tooltip;
+                        }
+                    });
+
+                    el.addEventListener('mouseleave', (e) => {
+                        if (e.currentTarget._tooltip) {
+                            e.currentTarget._tooltip.remove();
+                            delete e.currentTarget._tooltip;
+                        }
+                    });
+                });
+            }
+
+            showTaskDetail(task) {
+                const formatDate = (dateStr) => {
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                };
+                
+                const toInputDateValue = (dateStr) => {
+                    const date = new Date(dateStr);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                };
+
+                const modal = document.createElement('div');
+                modal.className = 'modal active';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 20px;">
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827; flex: 1; margin: 0;">${task.title}</h2>
+                            <button class="modal-close" style="background: none; border: none; font-size: 1.5rem; color: #6b7280; cursor: pointer; padding: 0; margin-left: 16px; line-height: 1;">
+                                ✕
+                            </button>
+                        </div>
+                        <div style="space-y: 16px;">
+                            <div style="margin-bottom: 16px;">
+                                <div style="display: flex; align-items: start;">
+                                    <svg style="width: 20px; height: 20px; color: #6b7280; margin-right: 12px; margin-top: 2px; flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 8px;">期間</div>
+                                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
+                                            <label style="font-size: 0.8rem; color: #6b7280; width: 60px;">開始日:</label>
+                                            <input type="date" id="edit-start-date" value="${toInputDateValue(task.start)}" style="flex: 1; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem;">
+                                        </div>
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <label style="font-size: 0.8rem; color: #6b7280; width: 60px;">終了日:</label>
+                                            <input type="date" id="edit-end-date" value="${toInputDateValue(task.end)}" style="flex: 1; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <div style="display: flex; align-items: start;">
+                                    <svg style="width: 20px; height: 20px; color: #6b7280; margin-right: 12px; margin-top: 2px; flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 8px;">進捗率</div>
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <input type="number" id="edit-progress" value="${Math.round(task.progress)}" min="0" max="100" style="width: 80px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem;">
+                                            <span style="color: #6b7280; font-size: 0.875rem;">%</span>
+                                            <div style="flex: 1; background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-left: 8px;">
+                                                <div id="progress-preview" style="background: ${task.color}; height: 100%; width: ${task.progress}%; transition: width 0.3s ease;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center;">
+                                    <div style="width: 16px; height: 16px; border-radius: 4px; background-color: ${task.color}; margin-right: 12px;"></div>
+                                    <div style="font-size: 0.875rem; color: #6b7280;">タスクの色</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 12px;">
+                            <button class="modal-detail" data-url="${task.url}" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                詳細を見る
+                            </button>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="modal-cancel" style="padding: 10px 20px; background: #f3f4f6; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; color: #374151;">
+                                    キャンセル
+                                </button>
+                                <button class="modal-save" style="padding: 10px 20px; background: #4F46E5; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                    保存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+
+                // 進捗率のリアルタイムプレビュー
+                const progressInput = modal.querySelector('#edit-progress');
+                const progressPreview = modal.querySelector('#progress-preview');
+                
+                progressInput?.addEventListener('input', (e) => {
+                    let value = parseInt(e.target.value) || 0;
+                    if (value < 0) value = 0;
+                    if (value > 100) value = 100;
+                    e.target.value = value;
+                    progressPreview.style.width = `${value}%`;
+                });
+
+                const closeModal = () => {
+                    modal.classList.remove('active');
+                    setTimeout(() => modal.remove(), 200);
+                };
+
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+
+                modal.querySelector('.modal-close')?.addEventListener('click', closeModal);
+                modal.querySelector('.modal-cancel')?.addEventListener('click', closeModal);
+                
+                modal.querySelector('.modal-detail')?.addEventListener('click', (e) => {
+                    const url = e.currentTarget.getAttribute('data-url');
+                    if (url) {
+                        window.top.location.href = url;
+                    }
+                });
+                
+                modal.querySelector('.modal-save')?.addEventListener('click', async () => {
+                    const startDate = modal.querySelector('#edit-start-date').value;
+                    const endDate = modal.querySelector('#edit-end-date').value;
+                    const progress = parseInt(modal.querySelector('#edit-progress').value) || 0;
+                    
+                    if (!startDate || !endDate) {
+                        alert('開始日と終了日を入力してください。');
+                        return;
+                    }
+                    
+                    // デバッグ: タスクデータを確認
+                    console.log('Task data:', task);
+                    
+                    // table_nameを取得（taskに含まれていない場合はURLから取得）
+                    let tableName = task.tableName;
+                    if (!tableName && task.url) {
+                        const urlParts = task.url.split('/');
+                        tableName = urlParts[3];
+                    }
+                    
+                    if (!tableName) {
+                        alert('テーブル名が取得できません。');
+                        return;
+                    }
+                    
+                    const saveBtn = modal.querySelector('.modal-save');
+                    const originalText = saveBtn.textContent;
+                    saveBtn.textContent = '保存中...';
+                    saveBtn.disabled = true;
+                    
+                    try {
+                        // Exmentの標準データ更新APIを使用
+                        const updateUrl = `/admin/data/${tableName}/${task.id}`;
+                        
+                        // 親ウィンドウからCSRFトークンを取得
+                        let csrfToken = '';
+                        try {
+                            csrfToken = window.top.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        } catch (e) {
+                            // クロスオリジンエラーの場合
+                            csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        }
+                        
+                        if (!csrfToken) {
+                            alert('CSRFトークンが取得できません。ページを再読み込みしてください。');
+                            saveBtn.textContent = originalText;
+                            saveBtn.disabled = false;
+                            return;
+                        }
+                        
+                        // 更新用のデータを構築
+                        const formData = new FormData();
+                        formData.append('_method', 'PUT');
+                        formData.append('_token', csrfToken);
+                        if (task.startColumn) formData.append(`value[${task.startColumn}]`, startDate);
+                        if (task.endColumn) formData.append(`value[${task.endColumn}]`, endDate);
+                        if (task.progressColumn) formData.append(`value[${task.progressColumn}]`, progress);
+                        
+                        console.log('Update URL:', updateUrl);
+                        console.log('CSRF Token:', csrfToken);
+                        console.log('Update data:', {
+                            startColumn: task.startColumn,
+                            endColumn: task.endColumn,
+                            progressColumn: task.progressColumn,
+                            startDate,
+                            endDate,
+                            progress
+                        });
+                        
+                        const response = await fetch(updateUrl, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            // タスクデータを更新
+                            task.start = startDate + ' 00:00:00';
+                            task.end = endDate + ' 00:00:00';
+                            task.progress = progress;
+                            
+                            console.log('更新するタスク:', task);
+                            
+                            // タスクバーを探して更新
+                            const allBars = document.querySelectorAll('.gantt-bar');
+                            console.log('タスクバーの数:', allBars.length);
+                            
+                            let updated = false;
+                            allBars.forEach(bar => {
+                                const taskData = bar.getAttribute('data-task');
+                                if (taskData) {
+                                    try {
+                                        const barTask = JSON.parse(taskData.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+                                        console.log('比較:', barTask.id, task.id);
+                                        if (barTask.id === task.id) {
+                                            updated = true;
+                                            console.log('タスクバー更新開始:', barTask);
+                                            // 日付範囲を再計算
+                                            const start = new Date(task.start.split(' ')[0]);
+                                            const end = new Date(task.end.split(' ')[0]);
+                                            const minDate = currentGanttChart.minDate;
+                                            
+                                            console.log('日付オブジェクト:', {
+                                                start: start.toString(),
+                                                end: end.toString(),
+                                                minDate: minDate.toString()
+                                            });
+                                            
+                                            // 日数を正確に計算（終了日を含む）
+                                            const startDiff = Math.floor((start - minDate) / (1000 * 60 * 60 * 24));
+                                            const endDiff = Math.floor((end - minDate) / (1000 * 60 * 60 * 24));
+                                            const duration = endDiff - startDiff + 1;
+                                            
+                                            // タスクバーの位置と幅を更新（50pxベース）
+                                            const leftPosition = startDiff * 50 + 4;
+                                            const barWidth = duration * 50 - 8;
+                                            bar.style.left = leftPosition + 'px';
+                                            bar.style.width = barWidth + 'px';
+                                            
+                                            console.log('日付計算:', {
+                                                start: task.start,
+                                                end: task.end,
+                                                startDiff,
+                                                endDiff,
+                                                duration,
+                                                leftPosition,
+                                                barWidth
+                                            });
+                                            
+                                            // data-task属性を先に更新
+                                            barTask.start = task.start;
+                                            barTask.end = task.end;
+                                            barTask.progress = task.progress;
+                                            bar.setAttribute('data-task', JSON.stringify(barTask).replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
+                                            
+                                            // 進捗バーを更新（.gantt-bar-innerを使用）
+                                            const progressBar = bar.querySelector('.gantt-bar-inner');
+                                            if (progressBar) {
+                                                // 現在のバーの幅から進捗幅を計算
+                                                const barWidth = parseInt(bar.style.width);
+                                                const progressWidth = (barWidth * task.progress) / 100;
+                                                progressBar.style.width = progressWidth + 'px';
+                                                console.log('進捗バー更新:', progressWidth + 'px', '(', task.progress + '%)');
+                                            } else {
+                                                console.error('進捗バーが見つかりません');
+                                            }
+                                            
+                                            console.log('タスクバー更新完了:', {
+                                                left: bar.style.left,
+                                                width: bar.style.width,
+                                                progress: task.progress,
+                                                progressBarWidth: progressBar ? progressBar.style.width : 'なし'
+                                            });
+                                        }
+                                    } catch (e) {
+                                        console.error('タスクバー更新エラー:', e);
+                                    }
+                                }
+                            });
+                            
+                            if (!updated) {
+                                console.error('タスクバーが見つかりませんでした。task.id:', task.id);
+                            }
+                            
+                            showToast('保存しました。');
+                            closeModal();
+                        } else {
+                            const result = await response.json().catch(() => ({}));
+                            showToast('保存に失敗しました: ' + (result.error || result.message || `HTTP ${response.status}`), true);
+                            saveBtn.textContent = originalText;
+                            saveBtn.disabled = false;
+                        }
+                    } catch (error) {
+                        console.error('保存エラー:', error);
+                        showToast('保存中にエラーが発生しました: ' + error.message, true);
+                        saveBtn.textContent = originalText;
+                        saveBtn.disabled = false;
+                    }
+                });
+            }
+        }
+
+        // ガントチャート初期化（グローバル変数として保存）
+        let currentGanttChart = new GanttChart(ganttData);
+    </script>
+</body>
+</html>
