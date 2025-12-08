@@ -1,15 +1,16 @@
 {
-    "plugin_name": "GanttChart",
-    "plugin_view_name": "ガントチャート",
-    "description": "ガントチャートを表示します。",
-    "uuid": "4880a5c5-eced-60f4-0ac5-d2d672f63bea",
+    "plugin_name": "CustomGanttChart",
+    "plugin_view_name": "カスタムガントチャート",
+    "description": "独自実装のガントチャートビュープラグインです。タスクの開始日・終了日・進捗率を視覚的に表示します。",
+    "uuid": "a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
     "author": "momijiina",
-    "version": "2.1.6",
+    "version": "3.0.0",
     "plugin_type": "view",
     "route": [
         {
             "uri": "update",
             "method": [
+                "get",
                 "post"
             ],
             "function": "update"
