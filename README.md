@@ -14,37 +14,13 @@ Frappe Ganttを廃止しシンプルなガントチャートへ変更します�
 | 進捗度 | 整数(0~100) |
 | 色 | 赤、青、緑(初期値　追加はCSSから) またはカラーコードを使用|
 
-意図しないドラッグを防ぐため編集モードは更新時等はオフなっています。切り替えて使用してください。
+<img width="1918" height="1074" alt="gantt1" src="https://github.com/user-attachments/assets/c4f19b08-c171-4dec-9015-6576098c0e1d" />
 
-![ss1](https://github.com/user-attachments/assets/9234e509-3fd6-42fd-a4a2-93023174e1b9)
-
-ダブルクリックで詳細を表示
-
-![ss2](https://github.com/user-attachments/assets/09bdd8cf-05f8-4a83-a816-7a2c2b2ba869)
+クリックで詳細を表示(編集可能)<br/>
+<img width="585" height="485" alt="gantt2" src="https://github.com/user-attachments/assets/a2bbd031-1425-47b7-b347-395aca04dabb" />
 
 # カラーコードの適用方法について
 カラーコードに対応しているため。直接カラーコードをいれてもらうか
 
 選択肢 (値・見出しを登録)を使用してください。
-
-例
-![ss4](https://github.com/user-attachments/assets/7483be7d-7cba-4cbd-9580-1f00d5552284)
-# 土日の追加ハイライト方法
-gantt.blade.phpのstyleでいいので以下を追加(カラーコードは自由に変更してください)
-```style:add.css
-        .holiday-highlight {
-            fill: #dcdcdc!important; /* 初期だと薄い為 */
-        }
-```
-
-# このプラグインには以下が含まれます。
-- **[Exment](https://github.com/exceedone/exment)**
-
-  Exment用プラグインとして作成しています。
-
-- **[Frappe Gantt](https://github.com/frappe/gantt)**
-
-  ~~Frappe GanttのCDNを使用しています。~~
-  
-  ローカル環境を考慮してv2.1.0からCDNを削除し直接参照されるように変更しました。
 
