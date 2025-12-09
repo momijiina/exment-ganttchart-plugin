@@ -153,8 +153,6 @@
 
         .gantt-row {
             display: flex;
-            min-height: 56px;
-            height: 56px;
             align-items: center;
             position: relative;
             background: white !important;
@@ -170,14 +168,10 @@
         }
 
         .gantt-task-name {
-            padding: 14px;
             border-bottom: 1px solid #e5e7eb;
-            font-size: 0.9rem;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            min-height: 56px;
-            height: 56px;
             display: flex;
             align-items: center;
             background: #f9fafb;
@@ -200,14 +194,11 @@
 
         .gantt-bar {
             position: absolute;
-            height: 32px;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            padding: 0 10px;
-            font-size: 0.8rem;
             color: white;
             font-weight: 600;
             overflow: visible;
@@ -241,9 +232,6 @@
         }
 
         .gantt-grid-line {
-            min-width: 50px;
-            width: 50px;
-            height: 56px;
             border-right: 1px solid #e5e7eb;
             flex-shrink: 0;
             box-sizing: border-box;
@@ -484,6 +472,36 @@
             background: rgba(79, 70, 229, 0.9);
             color: white;
         }
+        
+        .zoom-btn {
+            background: rgba(79, 70, 229, 0.9);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+        
+        .zoom-btn:hover {
+            background: rgba(67, 56, 202, 0.95);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .zoom-btn:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
     </style>
 </head>
 <body>
@@ -498,6 +516,12 @@
         </div>
         <button class="today-btn" onclick="scrollToToday()" title="今日の日付に移動">
             今日
+        </button>
+        <button class="zoom-btn" id="zoom-out-btn" onclick="zoomOut()" title="ズームアウト">
+            −
+        </button>
+        <button class="zoom-btn" id="zoom-in-btn" onclick="zoomIn()" title="ズームイン">
+            ＋
         </button>
         <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="フルスクリーン切り替え">
             <svg id="fullscreen-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -600,6 +624,8 @@
                 this.showTaskName = data.showTaskName !== false; // デフォルトはtrue
                 this.currentDate = new Date();
                 this.viewMode = 'day'; // 'day' or 'month'
+                this.zoomLevel = 1; // 0.5, 0.75, 1, 1.5, 2
+                this.zoomLevels = [0.5, 0.75, 1, 1.5, 2];
                 this.init();
             }
 
@@ -612,6 +638,39 @@
                 this.viewMode = mode;
                 this.render();
                 this.attachEvents();
+            }
+            
+            zoomIn() {
+                const currentIndex = this.zoomLevels.indexOf(this.zoomLevel);
+                if (currentIndex < this.zoomLevels.length - 1) {
+                    this.zoomLevel = this.zoomLevels[currentIndex + 1];
+                    this.render();
+                    this.attachEvents();
+                    this.updateZoomButtons();
+                }
+            }
+            
+            zoomOut() {
+                const currentIndex = this.zoomLevels.indexOf(this.zoomLevel);
+                if (currentIndex > 0) {
+                    this.zoomLevel = this.zoomLevels[currentIndex - 1];
+                    this.render();
+                    this.attachEvents();
+                    this.updateZoomButtons();
+                }
+            }
+            
+            updateZoomButtons() {
+                const currentIndex = this.zoomLevels.indexOf(this.zoomLevel);
+                const zoomInBtn = document.getElementById('zoom-in-btn');
+                const zoomOutBtn = document.getElementById('zoom-out-btn');
+                
+                if (zoomInBtn) {
+                    zoomInBtn.disabled = currentIndex >= this.zoomLevels.length - 1;
+                }
+                if (zoomOutBtn) {
+                    zoomOutBtn.disabled = currentIndex <= 0;
+                }
             }
 
             render() {
@@ -653,6 +712,9 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 
+                // ズームレベルに応じたセル幅を計算
+                const cellWidth = 50 * this.zoomLevel;
+                
                 // 曜日名
                 const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                 
@@ -685,7 +747,7 @@
                 let headerHtml = '<div class="gantt-header">';
                 headerHtml += '<div class="gantt-month-row">';
                 monthGroups.forEach(group => {
-                    const width = group.count * 50;
+                    const width = group.count * cellWidth;
                     headerHtml += `
                         <div class="gantt-month-cell" style="min-width: ${width}px; width: ${width}px; background: #f3f4f6;">
                             ${group.year}年${group.month}月
@@ -706,7 +768,7 @@
                     const dayName = dayNames[date.getDay()];
                     
                     headerHtml += `
-                        <div class="${className}">
+                        <div class="${className}" style="min-width: ${cellWidth}px; width: ${cellWidth}px;">
                             <div style="font-weight: 600; font-size: 0.95rem;">${date.getDate()}</div>
                             <div style="font-size: 0.7rem; margin-top: 2px; color: #6b7280;">${dayName}</div>
                         </div>
@@ -719,6 +781,15 @@
                 let tasksHtml = '';
                 let sidebarHtml = '';
                 
+                // ズームレベルに応じたサイズを計算
+                const rowHeight = 56 * this.zoomLevel;
+                const fontSize = 0.9 * this.zoomLevel;
+                const padding = 14 * this.zoomLevel;
+                const progressFontSize = 0.75 * this.zoomLevel;
+                const barHeight = 32 * this.zoomLevel;
+                const barFontSize = 0.8 * this.zoomLevel;
+                const barPadding = 10 * this.zoomLevel;
+                
                 this.tasks.forEach(task => {
                     const startDate = new Date(task.start);
                     startDate.setHours(0, 0, 0, 0);
@@ -727,15 +798,15 @@
                     
                     // サイドバー（タスク名）
                     sidebarHtml += `
-                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}">
+                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}" style="min-height: ${rowHeight}px; height: ${rowHeight}px; font-size: ${fontSize}rem; padding: ${padding}px;">
                             <span class="flex-1">${task.title}</span>
-                            ${task.progress > 0 ? `<span style="font-size: 0.75rem; color: #6b7280; margin-left: 8px;">${Math.round(task.progress)}%</span>` : ''}
+                            ${task.progress > 0 ? `<span style="font-size: ${progressFontSize}rem; color: #6b7280; margin-left: ${8 * this.zoomLevel}px;">${Math.round(task.progress)}%</span>` : ''}
                         </div>
                     `;
                     
                     // グリッド行（コンテナ）
-                    const totalWidth = dates.length * 50;
-                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; background: white;">`;
+                    const totalWidth = dates.length * cellWidth;
+                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; min-height: ${rowHeight}px; height: ${rowHeight}px; background: white;">`;
                     
                     // グリッド背景を先に描画
                     dates.forEach((date, index) => {
@@ -749,7 +820,7 @@
                         if (isWeekend && this.highlightWeekends) bgColor = '#f3f4f6';
                         if (isToday) bgColor = '#dbeafe';
                         
-                        tasksHtml += `<div class="${gridClass}" style="background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
+                        tasksHtml += `<div class="${gridClass}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; height: ${rowHeight}px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
                     });
                     
                     // バーを描画
@@ -766,15 +837,15 @@
                     });
                     
                     if (barStartIndex !== -1 && barWidth > 0) {
-                        const leftPosition = barStartIndex * 50 + 4;
-                        const barWidthPx = barWidth * 50 - 8;
+                        const leftPosition = barStartIndex * cellWidth + 4;
+                        const barWidthPx = barWidth * cellWidth - 8;
                         const progressWidth = (barWidthPx * task.progress) / 100;
                         
                         const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
                         
                         tasksHtml += `
                             <div class="gantt-bar" 
-                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; background-color: ${task.color};"
+                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; height: ${barHeight}px; padding: 0 ${barPadding}px; font-size: ${barFontSize}rem; background-color: ${task.color};"
                                  data-task='${taskJson}'>
                                 <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
                                 <span class="gantt-bar-label">${task.title}</span>
@@ -806,7 +877,7 @@
                         </div>
                         <div class="gantt-chart" id="gantt-chart">
                             ${headerHtml}
-                            <div class="gantt-body" style="background: white; min-width: ${dates.length * 50}px;">
+                            <div class="gantt-body" style="background: white; min-width: ${dates.length * cellWidth}px;">
                                 ${tasksHtml}
                             </div>
                         </div>
@@ -820,6 +891,9 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const currentMonth = `${today.getFullYear()}-${today.getMonth()}`;
+                
+                // ズームレベルに応じたセル幅を計算
+                const cellWidth = 80 * this.zoomLevel;
                 
                 // ヘッダー生成（年行）
                 const yearGroups = [];
@@ -848,7 +922,7 @@
                 let headerHtml = '<div class="gantt-header">';
                 headerHtml += '<div class="gantt-month-row">';
                 yearGroups.forEach(group => {
-                    const width = group.count * 80;
+                    const width = group.count * cellWidth;
                     headerHtml += `
                         <div class="gantt-month-cell" style="min-width: ${width}px; width: ${width}px; background: #f3f4f6;">
                             ${group.year}年
@@ -866,7 +940,7 @@
                     if (isCurrentMonth) className += ' today';
                     
                     headerHtml += `
-                        <div class="${className}" style="min-width: 80px; width: 80px;">
+                        <div class="${className}" style="min-width: ${cellWidth}px; width: ${cellWidth}px;">
                             <div style="font-weight: 600; font-size: 0.95rem;">${month.month}月</div>
                         </div>
                     `;
@@ -878,6 +952,15 @@
                 let tasksHtml = '';
                 let sidebarHtml = '';
                 
+                // ズームレベルに応じたサイズを計算
+                const rowHeight = 56 * this.zoomLevel;
+                const fontSize = 0.9 * this.zoomLevel;
+                const padding = 14 * this.zoomLevel;
+                const progressFontSize = 0.75 * this.zoomLevel;
+                const barHeight = 32 * this.zoomLevel;
+                const barFontSize = 0.8 * this.zoomLevel;
+                const barPadding = 10 * this.zoomLevel;
+                
                 this.tasks.forEach(task => {
                     const startDate = new Date(task.start);
                     startDate.setHours(0, 0, 0, 0);
@@ -886,15 +969,15 @@
                     
                     // サイドバー（タスク名）
                     sidebarHtml += `
-                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}">
+                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}" style="min-height: ${rowHeight}px; height: ${rowHeight}px; font-size: ${fontSize}rem; padding: ${padding}px;">
                             <span class="flex-1">${task.title}</span>
-                            ${task.progress > 0 ? `<span style="font-size: 0.75rem; color: #6b7280; margin-left: 8px;">${Math.round(task.progress)}%</span>` : ''}
+                            ${task.progress > 0 ? `<span style="font-size: ${progressFontSize}rem; color: #6b7280; margin-left: ${8 * this.zoomLevel}px;">${Math.round(task.progress)}%</span>` : ''}
                         </div>
                     `;
                     
                     // グリッド行（コンテナ）
-                    const totalWidth = months.length * 80;
-                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; background: white;">`;
+                    const totalWidth = months.length * cellWidth;
+                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; min-height: ${rowHeight}px; height: ${rowHeight}px; background: white;">`;
                     
                     // グリッド背景を先に描画
                     months.forEach((month, index) => {
@@ -906,7 +989,7 @@
                         let bgColor = 'white';
                         if (isCurrentMonth) bgColor = '#dbeafe';
                         
-                        tasksHtml += `<div class="${gridClass}" style="min-width: 80px; width: 80px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
+                        tasksHtml += `<div class="${gridClass}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; height: ${rowHeight}px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
                     });
                     
                     // バーを描画
@@ -927,15 +1010,15 @@
                     });
                     
                     if (barStartIndex !== -1 && barWidth > 0) {
-                        const leftPosition = barStartIndex * 80 + 4;
-                        const barWidthPx = barWidth * 80 - 8;
+                        const leftPosition = barStartIndex * cellWidth + 4;
+                        const barWidthPx = barWidth * cellWidth - 8;
                         const progressWidth = (barWidthPx * task.progress) / 100;
                         
                         const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
                         
                         tasksHtml += `
                             <div class="gantt-bar" 
-                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; background-color: ${task.color};"
+                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; height: ${barHeight}px; padding: 0 ${barPadding}px; font-size: ${barFontSize}rem; background-color: ${task.color};"
                                  data-task='${taskJson}'>
                                 <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
                                 <span class="gantt-bar-label">${task.title}</span>
@@ -966,7 +1049,7 @@
                         </div>
                         <div class="gantt-chart" id="gantt-chart">
                             ${headerHtml}
-                            <div class="gantt-body" style="background: white; min-width: ${months.length * 80}px;">
+                            <div class="gantt-body" style="background: white; min-width: ${months.length * cellWidth}px;">
                                 ${tasksHtml}
                             </div>
                         </div>
@@ -1470,8 +1553,26 @@
             }
         }
         
+        // ズーム関数
+        function zoomIn() {
+            if (currentGanttChart) {
+                currentGanttChart.zoomIn();
+            }
+        }
+        
+        function zoomOut() {
+            if (currentGanttChart) {
+                currentGanttChart.zoomOut();
+            }
+        }
+        
         // ガントチャート初期化（グローバル変数として保存）
         let currentGanttChart = new GanttChart(ganttData);
+        
+        // 初期のズームボタン状態を更新
+        if (currentGanttChart) {
+            currentGanttChart.updateZoomButtons();
+        }
     </script>
 </body>
 </html>
