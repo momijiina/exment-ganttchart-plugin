@@ -452,10 +452,50 @@
         body.fullscreen .gantt-container {
             height: 100vh !important;
         }
+        
+        .view-tabs {
+            display: flex;
+            gap: 0;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 3px;
+        }
+        
+        .view-tab {
+            background: white;
+            color: #6b7280;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .view-tab:hover {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .view-tab.active {
+            background: rgba(79, 70, 229, 0.9);
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="top-buttons">
+        <div class="view-tabs" style="position: relative; top: 0; left: 0; box-shadow: none; padding: 0; margin-right: 8px;">
+            <button class="view-tab active" data-view="day" onclick="switchView('day')">
+                日表示
+            </button>
+            <button class="view-tab" data-view="month" onclick="switchView('month')">
+                月表示
+            </button>
+        </div>
         <button class="today-btn" onclick="scrollToToday()" title="今日の日付に移動">
             今日
         </button>
@@ -559,10 +599,17 @@
                 this.highlightWeekends = data.highlightWeekends || false;
                 this.showTaskName = data.showTaskName !== false; // デフォルトはtrue
                 this.currentDate = new Date();
+                this.viewMode = 'day'; // 'day' or 'month'
                 this.init();
             }
 
             init() {
+                this.render();
+                this.attachEvents();
+            }
+            
+            setViewMode(mode) {
+                this.viewMode = mode;
                 this.render();
                 this.attachEvents();
             }
@@ -594,6 +641,13 @@
             }
 
             renderGantt() {
+                if (this.viewMode === 'month') {
+                    return this.renderMonthView();
+                }
+                return this.renderDayView();
+            }
+            
+            renderDayView() {
                 // 日付範囲を計算
                 const dates = this.calculateDateRange();
                 const today = new Date();
@@ -758,6 +812,201 @@
                         </div>
                     </div>
                 `;
+            }
+            
+            renderMonthView() {
+                // 月の範囲を計算
+                const months = this.calculateMonthRange();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const currentMonth = `${today.getFullYear()}-${today.getMonth()}`;
+                
+                // ヘッダー生成（年行）
+                const yearGroups = [];
+                let currentYear = null;
+                let currentYearGroup = null;
+                
+                months.forEach(month => {
+                    const yearKey = month.year;
+                    if (yearKey !== currentYear) {
+                        if (currentYearGroup) {
+                            yearGroups.push(currentYearGroup);
+                        }
+                        currentYear = yearKey;
+                        currentYearGroup = {
+                            year: month.year,
+                            count: 1
+                        };
+                    } else {
+                        currentYearGroup.count++;
+                    }
+                });
+                if (currentYearGroup) {
+                    yearGroups.push(currentYearGroup);
+                }
+                
+                let headerHtml = '<div class="gantt-header">';
+                headerHtml += '<div class="gantt-month-row">';
+                yearGroups.forEach(group => {
+                    const width = group.count * 80;
+                    headerHtml += `
+                        <div class="gantt-month-cell" style="min-width: ${width}px; width: ${width}px; background: #f3f4f6;">
+                            ${group.year}年
+                        </div>
+                    `;
+                });
+                headerHtml += '</div>';
+                
+                // ヘッダー生成（月行）
+                headerHtml += '<div class="gantt-date-row">';
+                months.forEach(month => {
+                    const monthKey = `${month.year}-${month.month - 1}`;
+                    const isCurrentMonth = monthKey === currentMonth;
+                    let className = 'gantt-date-cell';
+                    if (isCurrentMonth) className += ' today';
+                    
+                    headerHtml += `
+                        <div class="${className}" style="min-width: 80px; width: 80px;">
+                            <div style="font-weight: 600; font-size: 0.95rem;">${month.month}月</div>
+                        </div>
+                    `;
+                });
+                headerHtml += '</div>';
+                headerHtml += '</div>';
+                
+                // タスク行を生成
+                let tasksHtml = '';
+                let sidebarHtml = '';
+                
+                this.tasks.forEach(task => {
+                    const startDate = new Date(task.start);
+                    startDate.setHours(0, 0, 0, 0);
+                    const endDate = new Date(task.end);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    // サイドバー（タスク名）
+                    sidebarHtml += `
+                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}">
+                            <span class="flex-1">${task.title}</span>
+                            ${task.progress > 0 ? `<span style="font-size: 0.75rem; color: #6b7280; margin-left: 8px;">${Math.round(task.progress)}%</span>` : ''}
+                        </div>
+                    `;
+                    
+                    // グリッド行（コンテナ）
+                    const totalWidth = months.length * 80;
+                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; background: white;">`;
+                    
+                    // グリッド背景を先に描画
+                    months.forEach((month, index) => {
+                        const monthKey = `${month.year}-${month.month - 1}`;
+                        const isCurrentMonth = monthKey === currentMonth;
+                        let gridClass = 'gantt-grid-line';
+                        if (isCurrentMonth) gridClass += ' today';
+                        
+                        let bgColor = 'white';
+                        if (isCurrentMonth) bgColor = '#dbeafe';
+                        
+                        tasksHtml += `<div class="${gridClass}" style="min-width: 80px; width: 80px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
+                    });
+                    
+                    // バーを描画
+                    let barStartIndex = -1;
+                    let barWidth = 0;
+                    
+                    const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+                    const endMonth = endDate.getFullYear() * 12 + endDate.getMonth();
+                    
+                    months.forEach((month, index) => {
+                        const currentMonthNum = month.year * 12 + (month.month - 1);
+                        if (currentMonthNum >= startMonth && currentMonthNum <= endMonth) {
+                            if (barStartIndex === -1) {
+                                barStartIndex = index;
+                            }
+                            barWidth++;
+                        }
+                    });
+                    
+                    if (barStartIndex !== -1 && barWidth > 0) {
+                        const leftPosition = barStartIndex * 80 + 4;
+                        const barWidthPx = barWidth * 80 - 8;
+                        const progressWidth = (barWidthPx * task.progress) / 100;
+                        
+                        const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                        
+                        tasksHtml += `
+                            <div class="gantt-bar" 
+                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; background-color: ${task.color};"
+                                 data-task='${taskJson}'>
+                                <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
+                                <span class="gantt-bar-label">${task.title}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    tasksHtml += '</div>';
+                });
+                
+                // サイドバーのヘッダー高さを計算
+                const monthCellHeight = 40;
+                const dateCellHeight = 70;
+                const headerHeight = monthCellHeight + dateCellHeight;
+                
+                // タスク名列を表示するかどうか
+                const sidebarStyle = this.showTaskName ? '' : 'display: none;';
+                
+                return `
+                    <div class="gantt-container">
+                        <div class="gantt-sidebar" style="${sidebarStyle}">
+                            <div class="gantt-sidebar-header" style="height: ${headerHeight}px; display: flex; align-items: center; padding: 0 14px; border-bottom: 2px solid #e5e7eb; box-sizing: border-box;">
+                                <span style="font-weight: 600; font-size: 0.95rem;">タスク名 (${ganttData.taskCount}件)</span>
+                            </div>
+                            <div class="gantt-sidebar-content">
+                                ${sidebarHtml}
+                            </div>
+                        </div>
+                        <div class="gantt-chart" id="gantt-chart">
+                            ${headerHtml}
+                            <div class="gantt-body" style="background: white; min-width: ${months.length * 80}px;">
+                                ${tasksHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            calculateMonthRange() {
+                if (this.tasks.length === 0) return [];
+                
+                let minDate = new Date(this.tasks[0].start);
+                let maxDate = new Date(this.tasks[0].end);
+                
+                this.tasks.forEach(task => {
+                    const start = new Date(task.start);
+                    const end = new Date(task.end);
+                    if (start < minDate) minDate = start;
+                    if (end > maxDate) maxDate = end;
+                });
+                
+                // 月の最初に調整
+                minDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+                maxDate = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+                
+                // 前後に余裕を持たせる
+                minDate.setMonth(minDate.getMonth() - 1);
+                maxDate.setMonth(maxDate.getMonth() + 1);
+                
+                const months = [];
+                const current = new Date(minDate);
+                
+                while (current <= maxDate) {
+                    months.push({
+                        year: current.getFullYear(),
+                        month: current.getMonth() + 1
+                    });
+                    current.setMonth(current.getMonth() + 1);
+                }
+                
+                return months;
             }
 
             calculateDateRange() {
@@ -1204,6 +1453,23 @@
             }
         }
 
+        // 表示モード切り替え関数
+        function switchView(mode) {
+            // タブの状態を更新
+            document.querySelectorAll('.view-tab').forEach(tab => {
+                if (tab.getAttribute('data-view') === mode) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            
+            // ガントチャートの表示を更新
+            if (currentGanttChart) {
+                currentGanttChart.setViewMode(mode);
+            }
+        }
+        
         // ガントチャート初期化（グローバル変数として保存）
         let currentGanttChart = new GanttChart(ganttData);
     </script>
