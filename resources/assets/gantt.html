@@ -557,6 +557,7 @@
                 this.tasks = data.tasks || [];
                 this.error = data.error;
                 this.highlightWeekends = data.highlightWeekends || false;
+                this.showTaskName = data.showTaskName !== false; // デフォルトはtrue
                 this.currentDate = new Date();
                 this.init();
             }
@@ -736,9 +737,12 @@
                 const dateCellHeight = 70; // padding 10px * 2 + テキスト高さ
                 const headerHeight = monthCellHeight + dateCellHeight;
                 
+                // タスク名列を表示するかどうか
+                const sidebarStyle = this.showTaskName ? '' : 'display: none;';
+                
                 return `
                     <div class="gantt-container">
-                        <div class="gantt-sidebar">
+                        <div class="gantt-sidebar" style="${sidebarStyle}">
                             <div class="gantt-sidebar-header" style="height: ${headerHeight}px; display: flex; align-items: center; padding: 0 14px; border-bottom: 2px solid #e5e7eb; box-sizing: border-box;">
                                 <span style="font-weight: 600; font-size: 0.95rem;">タスク名 (${ganttData.taskCount}件)</span>
                             </div>
