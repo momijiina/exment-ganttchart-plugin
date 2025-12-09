@@ -66,19 +66,21 @@ class Plugin extends PluginViewBase
         if (file_exists($htmlPath)) {
             $htmlContent = file_get_contents($htmlPath);
             
-            // ガントデータをJSON化
-            $ganttDataJson = json_encode(
-                $data, 
-                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | 
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-            );
+            // ガントデータをJSON化（エラーハンドリング付き）
+            $ganttDataJson = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+            
+            if ($ganttDataJson === false) {
+                \Log::error('JSON encode failed:', ['error' => json_last_error_msg()]);
+                $ganttDataJson = json_encode(['tasks' => [], 'error' => 'データのエンコードに失敗しました']);
+            }
+            
+            // HTMLエスケープ（二重引用符もエスケープ）
+            $escapedJson = htmlspecialchars($ganttDataJson, ENT_QUOTES, 'UTF-8');
             
             // HTMLにデータを注入
             $htmlContent = preg_replace(
-                '/<div id="gantt-data-config"[^>]*data-config=\'[^\']*\'[^>]*><\/div>/',
-                '<div id="gantt-data-config" style="display:none;" data-config=\'' . 
-                htmlspecialchars($ganttDataJson, ENT_QUOTES | ENT_HTML5, 'UTF-8') . 
-                '\'></div>',
+                '/<div id="gantt-data-config"[^>]*><\/div>/',
+                '<div id="gantt-data-config" style="display:none;" data-config="' . $escapedJson . '"></div>',
                 $htmlContent
             );
         } else {
@@ -111,8 +113,7 @@ class Plugin extends PluginViewBase
                 
             $form->select('end_date_column', '終了日列')
                 ->options($this->custom_table->getFilteredTypeColumns([ColumnType::DATE, ColumnType::DATETIME])->pluck('column_view_name', 'id'))
-                ->required()
-                ->help('タスクの終了日となる列を選択してください。カスタム列種類「日付」「日時」が候補に表示されます。');
+                ->help('タスクの終了日となる列を選択してください。選択しない場合は開始日と同じ日付が使用されます。カスタム列種類「日付」「日時」が候補に表示されます。');
                 
             $form->select('progress_column', '進捗率列')
                 ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL, ColumnType::SELECT_VALTEXT])->pluck('column_view_name', 'id'))
@@ -166,16 +167,16 @@ class Plugin extends PluginViewBase
         $progressColumnId = $this->custom_view->getCustomOption('progress_column');
         $colorColumnId = $this->custom_view->getCustomOption('color_column');
         
-        if (!$startDateColumnId || !$endDateColumnId) {
+        if (!$startDateColumnId) {
             return [
                 'tasks' => [],
-                'error' => '開始日列と終了日列は必須です。ビュー設定で列を指定してください。'
+                'error' => '開始日列は必須です。ビュー設定で列を指定してください。'
             ];
         }
         
         $titleColumn = $titleColumnId ? CustomColumn::find($titleColumnId) : null;
         $startDateColumn = CustomColumn::find($startDateColumnId);
-        $endDateColumn = CustomColumn::find($endDateColumnId);
+        $endDateColumn = $endDateColumnId ? CustomColumn::find($endDateColumnId) : null;
         $progressColumn = $progressColumnId ? CustomColumn::find($progressColumnId) : null;
         $colorColumn = $colorColumnId ? CustomColumn::find($colorColumnId) : null;
         
@@ -183,17 +184,25 @@ class Plugin extends PluginViewBase
         
         foreach ($items as $item) {
             $startDate = $item->getValue($startDateColumn->column_name);
-            $endDate = $item->getValue($endDateColumn->column_name);
+            $endDate = $endDateColumn ? $item->getValue($endDateColumn->column_name) : null;
             
-            // 日付が設定されていない場合はスキップ
-            if (!$startDate || !$endDate) {
+            // 開始日がない場合はスキップ
+            if (!$startDate) {
                 continue;
+            }
+            
+            // 終了日がない場合は開始日と同じにする
+            if (!$endDate) {
+                $endDate = $startDate;
             }
             
             $title = $titleColumn 
                 ? $item->getValue($titleColumn->column_name, true) 
                 : $item->getLabel();
-                
+            
+            // タイトルを文字列に変換して安全にする
+            $title = (string)$title;
+            
             $progress = 0;
             if ($progressColumn) {
                 $progressValue = $item->getValue($progressColumn->column_name);
@@ -222,7 +231,7 @@ class Plugin extends PluginViewBase
                 'url' => $item->getUrl(),
                 'tableName' => $this->custom_table->table_name,
                 'startColumn' => $startDateColumn->column_name,
-                'endColumn' => $endDateColumn->column_name,
+                'endColumn' => $endDateColumn ? $endDateColumn->column_name : null,
                 'progressColumn' => $progressColumn ? $progressColumn->column_name : null,
             ];
         }
@@ -233,7 +242,8 @@ class Plugin extends PluginViewBase
         return [
             'tasks' => $tasks,
             'error' => null,
-            'highlightWeekends' => (bool)$highlightWeekends
+            'highlightWeekends' => (bool)$highlightWeekends,
+            'taskCount' => count($tasks)
         ];
     }
 
