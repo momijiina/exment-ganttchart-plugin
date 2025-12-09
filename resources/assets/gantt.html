@@ -807,8 +807,8 @@
             }
 
             attachEventListeners() {
-                // タスク名クリックでモーダル表示
-                document.querySelectorAll('.task-name-link').forEach(el => {
+                // タスク名クリックでタスクの開始日にスクロール（今日ボタンと同じ動作）
+                document.querySelectorAll('.gantt-task-name').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.preventDefault();
                         const url = e.currentTarget.getAttribute('data-url');
@@ -816,7 +816,39 @@
                         // タスクデータを探す
                         const task = this.tasks.find(t => t.url === url);
                         if (task) {
-                            this.showTaskDetail(task);
+                            // タスクの開始日のセルを見つける
+                            const startDate = new Date(task.start);
+                            startDate.setHours(0, 0, 0, 0);
+                            
+                            // 全ての日付セルから開始日に対応するセルを探す
+                            const dateCells = document.querySelectorAll('.gantt-date-cell');
+                            let targetCell = null;
+                            
+                            dateCells.forEach((cell, index) => {
+                                const cellDate = new Date(this.minDate);
+                                cellDate.setDate(cellDate.getDate() + index);
+                                cellDate.setHours(0, 0, 0, 0);
+                                
+                                if (cellDate.getTime() === startDate.getTime()) {
+                                    targetCell = cell;
+                                }
+                            });
+                            
+                            // 今日ボタンと同じスクロール処理
+                            if (targetCell) {
+                                const ganttChart = document.getElementById('gantt-chart');
+                                if (ganttChart) {
+                                    const cellLeft = targetCell.offsetLeft;
+                                    const chartWidth = ganttChart.offsetWidth;
+                                    const cellWidth = targetCell.offsetWidth;
+                                    const scrollPosition = cellLeft - (chartWidth / 2) + (cellWidth / 2);
+                                    
+                                    ganttChart.scrollTo({
+                                        left: Math.max(0, scrollPosition),
+                                        behavior: 'smooth'
+                                    });
+                                }
+                            }
                         }
                     });
                 });
