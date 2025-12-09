@@ -130,6 +130,14 @@ class Plugin extends PluginViewBase
                 ])
                 ->default('0')
                 ->help('土日の列を薄い赤色でハイライト表示します。');
+                
+            $form->radio('show_task_name', 'タスク名列を表示')
+                ->options([
+                    '1' => '表示する',
+                    '0' => '非表示',
+                ])
+                ->default('1')
+                ->help('左側のタスク名列の表示/非表示を切り替えます。');
         });
         
         // フィルタ(絞り込み)の設定
@@ -239,10 +247,18 @@ class Plugin extends PluginViewBase
         // 土日ハイライト設定を取得
         $highlightWeekends = $this->custom_view->getCustomOption('highlight_weekends');
         
+        // タスク名列の表示設定を取得
+        $showTaskName = $this->custom_view->getCustomOption('show_task_name');
+        // デフォルトは表示（nullの場合も表示）
+        if ($showTaskName === null) {
+            $showTaskName = '1';
+        }
+        
         return [
             'tasks' => $tasks,
             'error' => null,
             'highlightWeekends' => (bool)$highlightWeekends,
+            'showTaskName' => (bool)$showTaskName,
             'taskCount' => count($tasks)
         ];
     }
