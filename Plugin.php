@@ -254,12 +254,28 @@ class Plugin extends PluginViewBase
             $showTaskName = '1';
         }
         
+        // 今日の日付に該当するタスク数を計算
+        $today = \Carbon\Carbon::today();
+        $todayStr = $today->format('Y-m-d');
+        $todayTaskCount = 0;
+        
+        foreach ($tasks as $task) {
+            $startDate = \Carbon\Carbon::parse($task['start'])->format('Y-m-d');
+            $endDate = \Carbon\Carbon::parse($task['end'])->format('Y-m-d');
+            
+            // 今日の日付がタスクの期間内に含まれるかチェック
+            if ($startDate <= $todayStr && $todayStr <= $endDate) {
+                $todayTaskCount++;
+            }
+        }
+        
         return [
             'tasks' => $tasks,
             'error' => null,
             'highlightWeekends' => (bool)$highlightWeekends,
             'showTaskName' => (bool)$showTaskName,
-            'taskCount' => count($tasks)
+            'taskCount' => count($tasks),
+            'todayTaskCount' => $todayTaskCount
         ];
     }
 
