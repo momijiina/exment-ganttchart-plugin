@@ -354,6 +354,20 @@
             justify-content: center;
         }
 
+        .modal-overlay {
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s;
+        }
+
         .modal-content {
             background-color: white;
             padding: 28px;
@@ -364,6 +378,41 @@
             overflow-y: auto;
             animation: slideIn 0.3s;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            position: relative;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .modal-close:hover {
+            background: #f3f4f6;
+            color: #111827;
+        }
+        
+        .modal-body {
+            padding: 0;
         }
 
         @keyframes fadeIn {
@@ -758,7 +807,7 @@
                 
                 // ヘッダー生成（日付行）
                 headerHtml += '<div class="gantt-date-row">';
-                dates.forEach(date => {
+                dates.forEach((date, index) => {
                     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                     const isToday = date.getTime() === today.getTime();
                     let className = 'gantt-date-cell';
@@ -768,7 +817,7 @@
                     const dayName = dayNames[date.getDay()];
                     
                     headerHtml += `
-                        <div class="${className}" style="min-width: ${cellWidth}px; width: ${cellWidth}px;">
+                        <div class="${className}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; cursor: pointer;" data-date-index="${index}">
                             <div style="font-weight: 600; font-size: 0.95rem;">${date.getDate()}</div>
                             <div style="font-size: 0.7rem; margin-top: 2px; color: #6b7280;">${dayName}</div>
                         </div>
@@ -1127,6 +1176,73 @@
                 return dates;
             }
 
+            showDateTasksModal(date, tasks) {
+                const dateStr = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+                const taskCount = tasks.length;
+                
+                // モーダルHTML生成
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">${dateStr} のタスク (${taskCount}件)</h2>
+                            <button class="modal-close">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="padding: 20px;">
+                            ${taskCount === 0 ? '<p style="color: #6b7280; text-align: center; padding: 20px 0;">この日付に該当するタスクはありません。</p>' : ''}
+                            ${tasks.map(task => `
+                                <div style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;" 
+                                     class="task-item" 
+                                     data-url="${task.url}"
+                                     onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#d1d5db';"
+                                     onmouseout="this.style.backgroundColor='white'; this.style.borderColor='#e5e7eb';">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 4px; height: 40px; background-color: ${task.color}; border-radius: 2px;"></div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600; color: #111827; margin-bottom: 4px;">${task.title}</div>
+                                            <div style="font-size: 0.875rem; color: #6b7280;">
+                                                ${task.start.split(' ')[0]} 〜 ${task.end.split(' ')[0]}
+                                                ${task.progress > 0 ? `<span style="margin-left: 12px; color: #059669;">進捗: ${Math.round(task.progress)}%</span>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // モーダルを閉じる関数
+                const closeModal = () => {
+                    modal.remove();
+                };
+                
+                // イベントリスナー設定
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+                
+                modal.querySelector('.modal-close')?.addEventListener('click', closeModal);
+                
+                // タスクアイテムクリックで詳細ページへ遷移
+                modal.querySelectorAll('.task-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const url = item.getAttribute('data-url');
+                        if (url) {
+                            window.top.location.href = url;
+                        }
+                    });
+                });
+            }
+
             attachEvents() {
                 // サイドバーのスクロール連動
                 const ganttChart = document.getElementById('gantt-chart');
@@ -1143,6 +1259,36 @@
             }
 
             attachEventListeners() {
+                // 日付セルクリックでその日のタスク詳細モーダルを表示
+                document.querySelectorAll('.gantt-date-cell').forEach((cell, index) => {
+                    cell.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // data-date-indexがない場合はindexを使用
+                        const dateIndex = cell.getAttribute('data-date-index') ? parseInt(cell.getAttribute('data-date-index')) : index;
+                        
+                        // クリックされた日付を計算
+                        const dates = this.calculateDateRange();
+                        const clickedDate = dates[dateIndex];
+                        
+                        if (!clickedDate) return;
+                        
+                        // その日のタスクを抽出
+                        const tasksOnDate = this.tasks.filter(task => {
+                            const startDate = new Date(task.start);
+                            startDate.setHours(0, 0, 0, 0);
+                            const endDate = new Date(task.end);
+                            endDate.setHours(0, 0, 0, 0);
+                            
+                            return clickedDate >= startDate && clickedDate <= endDate;
+                        });
+                        
+                        // モーダルを表示
+                        this.showDateTasksModal(clickedDate, tasksOnDate);
+                    });
+                });
+                
                 // タスク名クリックでタスクの開始日にスクロール（今日ボタンと同じ動作）
                 document.querySelectorAll('.gantt-task-name').forEach(el => {
                     el.addEventListener('click', (e) => {
