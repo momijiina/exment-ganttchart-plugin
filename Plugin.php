@@ -116,8 +116,13 @@ class Plugin extends PluginViewBase
                 ->help('タスクの終了日となる列を選択してください。選択しない場合は開始日と同じ日付が使用されます。カスタム列種類「日付」「日時」が候補に表示されます。');
                 
             $form->select('progress_column', '進捗率列')
-                ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL, ColumnType::SELECT_VALTEXT])->pluck('column_view_name', 'id'))
-                ->help('タスクの進捗率を表す列を選択してください。カスタム列種類「整数」「小数」「選択肢(値・見出し)」が候補に表示されます。');
+                ->options($this->custom_table->getFilteredTypeColumns([ColumnType::INTEGER, ColumnType::DECIMAL, ColumnType::SELECT_VALTEXT, ColumnType::SELECT])->pluck('column_view_name', 'id'))
+                ->help('タスクの進捗率を表す列を選択してください。数値列または選択列を指定できます。');
+                
+            $form->textarea('progress_text_mapping', '進捗テキストマッピング')
+                ->rows(5)
+                ->placeholder("進行度1:50\n進行度2:80\n進行度3:100")
+                ->help('選択列を進捗列に使用する場合、テキストと%の対応を1行1組で入力してください。形式: テキスト:数値（例: 進行度1:50）');
                 
             $form->select('color_column', '色指定列')
                 ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
@@ -175,6 +180,23 @@ class Plugin extends PluginViewBase
         $progressColumnId = $this->custom_view->getCustomOption('progress_column');
         $colorColumnId = $this->custom_view->getCustomOption('color_column');
         
+        // 進捗テキストマッピングを解析
+        $progressTextMapping = [];
+        $progressMappingRaw = $this->custom_view->getCustomOption('progress_text_mapping');
+        if (!empty($progressMappingRaw)) {
+            foreach (explode("\n", $progressMappingRaw) as $line) {
+                $line = trim($line);
+                if (strpos($line, ':') !== false) {
+                    [$text, $percent] = explode(':', $line, 2);
+                    $text = trim($text);
+                    $percent = floatval(trim($percent));
+                    if (!empty($text) && $percent >= 0 && $percent <= 100) {
+                        $progressTextMapping[$text] = $percent;
+                    }
+                }
+            }
+        }
+        
         if (!$startDateColumnId) {
             return [
                 'tasks' => [],
@@ -214,11 +236,22 @@ class Plugin extends PluginViewBase
             $progress = 0;
             if ($progressColumn) {
                 $progressValue = $item->getValue($progressColumn->column_name);
+                // 表示用テキストも取得（選択列の場合に使用）
+                $progressText = $item->getValue($progressColumn->column_name, true);
+                
                 if (is_numeric($progressValue)) {
                     $progress = floatval($progressValue);
-                    // 進捗率が100を超えている場合は100にする
-                    if ($progress > 100) {
-                        $progress = 100;
+                    if ($progress > 100) $progress = 100;
+                } else {
+                    // テキストマッピングを試みる
+                    $textValue = trim((string)($progressText ?? $progressValue));
+                    if (!empty($textValue) && !empty($progressTextMapping)) {
+                        foreach ($progressTextMapping as $mapText => $mapPercent) {
+                            if (trim($mapText) === $textValue) {
+                                $progress = $mapPercent;
+                                break;
+                            }
+                        }
                     }
                 }
             }
