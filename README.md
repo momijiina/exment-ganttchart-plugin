@@ -20,6 +20,10 @@
 <img width="1453" height="331" alt="bbb" src="https://github.com/user-attachments/assets/1a96b7c8-4dd5-4481-995d-ff2b58d726fc" />
 <img width="1622" height="288" alt="aaa" src="https://github.com/user-attachments/assets/c65bad34-cf9d-4b4d-87de-90a1e6f9176a" />
 
+カラーコード例
+<img width="1267" height="243" alt="cccc" src="https://github.com/user-attachments/assets/fb8b019e-fcd7-422d-8bcd-3ce29e73aff7" />
+<img width="1617" height="317" alt="dddd" src="https://github.com/user-attachments/assets/226c8548-9ccb-40ab-9067-bcb4f6f0b81e" />
+
 
 # テキストマッピングについて
 選択列の値が一致するときに50%にするなどが可能です。
