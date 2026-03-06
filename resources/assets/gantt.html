@@ -1456,11 +1456,21 @@
                 // サイドバーのスクロール連動
                 const ganttChart = document.getElementById('gantt-chart');
                 const sidebarContent = document.querySelector('.gantt-sidebar-content');
+                const sidebar = document.querySelector('.gantt-sidebar');
                 
                 if (ganttChart && sidebarContent) {
                     ganttChart.addEventListener('scroll', () => {
                         sidebarContent.style.transform = `translateY(-${ganttChart.scrollTop}px)`;
                     });
+                }
+
+                // サイドバー上のマウスホイールをガントチャートに転送
+                if (sidebar && ganttChart) {
+                    sidebar.addEventListener('wheel', (e) => {
+                        e.preventDefault();
+                        ganttChart.scrollTop += e.deltaY;
+                        ganttChart.scrollLeft += e.deltaX;
+                    }, { passive: false });
                 }
 
                 // イベントリスナーを設定
