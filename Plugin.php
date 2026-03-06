@@ -128,6 +128,10 @@ class Plugin extends PluginViewBase
                 ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
                 ->help('タスクの色を指定する列を選択してください。列の値が「赤」「青」「緑」「黄」「紫」の場合、対応する色でタスクが表示されます。それ以外の値や値がない場合は青色で表示されます。');
                 
+            $form->select('category_column', 'カテゴリー列')
+                ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
+                ->help('タスクをグループ化するカテゴリー列を選択してください。設定するとカテゴリーごとにグループ表示され、折りたたみ/展開ができます。');
+                
             $form->radio('highlight_weekends', '土日をハイライト')
                 ->options([
                     '1' => 'する',
@@ -204,11 +208,14 @@ class Plugin extends PluginViewBase
             ];
         }
         
+        $categoryColumnId = $this->custom_view->getCustomOption('category_column');
+        
         $titleColumn = $titleColumnId ? CustomColumn::find($titleColumnId) : null;
         $startDateColumn = CustomColumn::find($startDateColumnId);
         $endDateColumn = $endDateColumnId ? CustomColumn::find($endDateColumnId) : null;
         $progressColumn = $progressColumnId ? CustomColumn::find($progressColumnId) : null;
         $colorColumn = $colorColumnId ? CustomColumn::find($colorColumnId) : null;
+        $categoryColumn = $categoryColumnId ? CustomColumn::find($categoryColumnId) : null;
         
         $tasks = [];
         
@@ -262,6 +269,11 @@ class Plugin extends PluginViewBase
                 $color = $this->getColorFromValue($colorValue);
             }
             
+            $category = '';
+            if ($categoryColumn) {
+                $category = (string)$item->getValue($categoryColumn->column_name, true);
+            }
+            
             $tasks[] = [
                 'id' => $item->id,
                 'title' => $title,
@@ -274,6 +286,7 @@ class Plugin extends PluginViewBase
                 'startColumn' => $startDateColumn->column_name,
                 'endColumn' => $endDateColumn ? $endDateColumn->column_name : null,
                 'progressColumn' => $progressColumn ? $progressColumn->column_name : null,
+                'category' => $category,
             ];
         }
         
@@ -308,7 +321,8 @@ class Plugin extends PluginViewBase
             'highlightWeekends' => (bool)$highlightWeekends,
             'showTaskName' => (bool)$showTaskName,
             'taskCount' => count($tasks),
-            'todayTaskCount' => $todayTaskCount
+            'todayTaskCount' => $todayTaskCount,
+            'hasCategory' => !empty($categoryColumnId),
         ];
     }
 
