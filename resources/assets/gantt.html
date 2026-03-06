@@ -414,6 +414,54 @@
         .modal-body {
             padding: 0;
         }
+        
+        /* カテゴリーヘッダー */
+        .gantt-category-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #eef2ff;
+            border-top: 2px solid #c7d2fe;
+            border-bottom: 2px solid #c7d2fe;
+            padding: 0 10px;
+            font-weight: 700;
+            color: #3730a3;
+            user-select: none;
+            box-sizing: border-box;
+        }
+        
+        .gantt-category-body-row {
+            display: flex;
+            align-items: center;
+            background: #eef2ff;
+            border-top: 2px solid #c7d2fe;
+            border-bottom: 2px solid #c7d2fe;
+            padding: 0 16px;
+            box-sizing: border-box;
+            position: relative;
+        }
+        
+        .category-toggle-btn {
+            background: none;
+            border: 1px solid #a5b4fc;
+            cursor: pointer;
+            font-size: 0.65rem;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            color: #4f46e5;
+            transition: all 0.15s;
+            flex-shrink: 0;
+            padding: 0;
+        }
+        
+        .category-toggle-btn:hover {
+            background: #e0e7ff;
+            border-color: #6366f1;
+        }
 
         @keyframes fadeIn {
             from { opacity: 0; }
@@ -675,6 +723,8 @@
                 this.viewMode = 'day'; // 'day' or 'month'
                 this.zoomLevel = 1; // 0.5, 0.75, 1, 1.5, 2
                 this.zoomLevels = [0.5, 0.75, 1, 1.5, 2];
+                this.collapsedCategories = new Set(); // 折りたたみ中のカテゴリーインデックス
+                this.categoryList = []; // 現在のレンダリングのカテゴリー名リスト
                 this.init();
             }
 
@@ -753,6 +803,22 @@
                     return this.renderMonthView();
                 }
                 return this.renderDayView();
+            }
+            
+            // カテゴリーごとにタスクをグループ分け（カンマ区切りで複数カテゴリーに重複登録）
+            groupByCategory(tasks) {
+                const groups = {};
+                tasks.forEach(task => {
+                    const catRaw = task.category || '';
+                    // カンマ区切りで分割し、空白をトリム
+                    const cats = catRaw.split(',').map(c => c.trim()).filter(c => c.length > 0);
+                    const catList = cats.length > 0 ? cats : [''];
+                    catList.forEach(cat => {
+                        if (!groups[cat]) groups[cat] = [];
+                        groups[cat].push(task);
+                    });
+                });
+                return groups;
             }
             
             renderDayView() {
@@ -838,72 +904,109 @@
                 const barHeight = 32 * this.zoomLevel;
                 const barFontSize = 0.8 * this.zoomLevel;
                 const barPadding = 10 * this.zoomLevel;
+                const totalWidth = dates.length * cellWidth;
+                const catHeaderHeight = Math.round(38 * this.zoomLevel);
                 
-                this.tasks.forEach(task => {
-                    const startDate = new Date(task.start);
-                    startDate.setHours(0, 0, 0, 0);
-                    const endDate = new Date(task.end);
-                    endDate.setHours(0, 0, 0, 0);
-                    
-                    // サイドバー（タスク名）
-                    sidebarHtml += `
-                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}" style="min-height: ${rowHeight}px; height: ${rowHeight}px; font-size: ${fontSize}rem; padding: ${padding}px;">
-                            <span class="flex-1">${task.title}</span>
-                            ${task.progress > 0 ? `<span style="font-size: ${progressFontSize}rem; color: #6b7280; margin-left: ${8 * this.zoomLevel}px;">${Math.round(task.progress)}%</span>` : ''}
-                        </div>
-                    `;
-                    
-                    // グリッド行（コンテナ）
-                    const totalWidth = dates.length * cellWidth;
-                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; min-height: ${rowHeight}px; height: ${rowHeight}px; background: white;">`;
-                    
-                    // グリッド背景を先に描画
-                    dates.forEach((date, index) => {
-                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                        const isToday = date.getTime() === today.getTime();
-                        let gridClass = 'gantt-grid-line';
-                        if (isWeekend && this.highlightWeekends) gridClass += ' weekend-highlight';
-                        if (isToday) gridClass += ' today';
+                // タスク行描画ヘルパー
+                const buildDayTaskRows = (taskList, catIdx) => {
+                    taskList.forEach(task => {
+                        const startDate = new Date(task.start);
+                        startDate.setHours(0, 0, 0, 0);
+                        const endDate = new Date(task.end);
+                        endDate.setHours(0, 0, 0, 0);
                         
-                        let bgColor = 'white';
-                        if (isWeekend && this.highlightWeekends) bgColor = '#f3f4f6';
-                        if (isToday) bgColor = '#dbeafe';
+                        const hideStyle = (ganttData.hasCategory && this.collapsedCategories.has(catIdx)) ? 'display: none;' : '';
+                        const catAttr = catIdx >= 0 ? `data-cat-idx="${catIdx}"` : '';
                         
-                        tasksHtml += `<div class="${gridClass}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; height: ${rowHeight}px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
-                    });
-                    
-                    // バーを描画
-                    let barStartIndex = -1;
-                    let barWidth = 0;
-                    
-                    dates.forEach((date, index) => {
-                        if (date.getTime() >= startDate.getTime() && date.getTime() <= endDate.getTime()) {
-                            if (barStartIndex === -1) {
-                                barStartIndex = index;
-                            }
-                            barWidth++;
-                        }
-                    });
-                    
-                    if (barStartIndex !== -1 && barWidth > 0) {
-                        const leftPosition = barStartIndex * cellWidth + 4;
-                        const barWidthPx = barWidth * cellWidth - 8;
-                        const progressWidth = (barWidthPx * task.progress) / 100;
-                        
-                        const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
-                        
-                        tasksHtml += `
-                            <div class="gantt-bar" 
-                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; height: ${barHeight}px; padding: 0 ${barPadding}px; font-size: ${barFontSize}rem; background-color: ${task.color};"
-                                 data-task='${taskJson}'>
-                                <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
-                                <span class="gantt-bar-label">${task.title}</span>
+                        // サイドバー（タスク名）
+                        sidebarHtml += `
+                            <div class="gantt-task-name gantt-cat-task" data-url="${task.url}" title="${task.title}" ${catAttr} style="${hideStyle} min-height: ${rowHeight}px; height: ${rowHeight}px; font-size: ${fontSize}rem; padding: ${padding}px;">
+                                <span class="flex-1">${task.title}</span>
+                                ${task.progress > 0 ? `<span style="font-size: ${progressFontSize}rem; color: #6b7280; margin-left: ${8 * this.zoomLevel}px;">${Math.round(task.progress)}%</span>` : ''}
                             </div>
                         `;
-                    }
+                        
+                        // グリッド行（コンテナ）
+                        tasksHtml += `<div class="gantt-row gantt-cat-task" ${catAttr} style="${hideStyle} width: ${totalWidth}px; min-width: ${totalWidth}px; min-height: ${rowHeight}px; height: ${rowHeight}px; background: white;">`;
+                        
+                        // グリッド背景を先に描画
+                        dates.forEach((date, index) => {
+                            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                            const isToday = date.getTime() === today.getTime();
+                            let gridClass = 'gantt-grid-line';
+                            if (isWeekend && this.highlightWeekends) gridClass += ' weekend-highlight';
+                            if (isToday) gridClass += ' today';
+                            
+                            let bgColor = 'white';
+                            if (isWeekend && this.highlightWeekends) bgColor = '#f3f4f6';
+                            if (isToday) bgColor = '#dbeafe';
+                            
+                            tasksHtml += `<div class="${gridClass}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; height: ${rowHeight}px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
+                        });
+                        
+                        // バーを描画
+                        let barStartIndex = -1;
+                        let barWidth = 0;
+                        
+                        dates.forEach((date, index) => {
+                            if (date.getTime() >= startDate.getTime() && date.getTime() <= endDate.getTime()) {
+                                if (barStartIndex === -1) {
+                                    barStartIndex = index;
+                                }
+                                barWidth++;
+                            }
+                        });
+                        
+                        if (barStartIndex !== -1 && barWidth > 0) {
+                            const leftPosition = barStartIndex * cellWidth + 4;
+                            const barWidthPx = barWidth * cellWidth - 8;
+                            const progressWidth = (barWidthPx * task.progress) / 100;
+                            
+                            const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                            
+                            tasksHtml += `
+                                <div class="gantt-bar" 
+                                     style="left: ${leftPosition}px; width: ${barWidthPx}px; height: ${barHeight}px; padding: 0 ${barPadding}px; font-size: ${barFontSize}rem; background-color: ${task.color};"
+                                     data-task='${taskJson}'>
+                                    <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
+                                    <span class="gantt-bar-label">${task.title}</span>
+                                </div>
+                            `;
+                        }
+                        
+                        tasksHtml += '</div>';
+                    });
+                };
+                
+                if (ganttData.hasCategory) {
+                    const groups = this.groupByCategory(this.tasks);
+                    this.categoryList = Object.keys(groups);
                     
-                    tasksHtml += '</div>';
-                });
+                    this.categoryList.forEach((categoryName, catIdx) => {
+                        const categoryTasks = groups[categoryName];
+                        const isCollapsed = this.collapsedCategories.has(catIdx);
+                        const displayName = categoryName || '未分類';
+                        
+                        // サイドバー カテゴリーヘッダー
+                        sidebarHtml += `
+                            <div class="gantt-category-header" style="height: ${catHeaderHeight}px;">
+                                <button class="category-toggle-btn" data-cat-idx="${catIdx}" title="${isCollapsed ? '展開' : '折りたたむ'}">${isCollapsed ? '▶' : '▼'}</button>
+                                <span>${displayName} <span style="font-size: 0.8em; color: #6b7280; font-weight: 400;">(${categoryTasks.length}件)</span></span>
+                            </div>
+                        `;
+                        
+                        // ガントボディ カテゴリーヘッダー行
+                        tasksHtml += `
+                            <div class="gantt-category-body-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; height: ${catHeaderHeight}px;">
+                                <span style="font-size: 0.88rem; font-weight: 700; color: #3730a3;">${displayName}</span>
+                            </div>
+                        `;
+                        
+                        buildDayTaskRows(categoryTasks, catIdx);
+                    });
+                } else {
+                    buildDayTaskRows(this.tasks, -1);
+                }
                 
                 // サイドバーのヘッダー高さを計算（月行 + 日付行）
                 // 月行と日付行の高さを厳密に取得
@@ -1009,74 +1112,111 @@
                 const barHeight = 32 * this.zoomLevel;
                 const barFontSize = 0.8 * this.zoomLevel;
                 const barPadding = 10 * this.zoomLevel;
+                const totalWidth = months.length * cellWidth;
+                const catHeaderHeight = Math.round(38 * this.zoomLevel);
                 
-                this.tasks.forEach(task => {
-                    const startDate = new Date(task.start);
-                    startDate.setHours(0, 0, 0, 0);
-                    const endDate = new Date(task.end);
-                    endDate.setHours(0, 0, 0, 0);
-                    
-                    // サイドバー（タスク名）
-                    sidebarHtml += `
-                        <div class="gantt-task-name" data-url="${task.url}" title="${task.title}" style="min-height: ${rowHeight}px; height: ${rowHeight}px; font-size: ${fontSize}rem; padding: ${padding}px;">
-                            <span class="flex-1">${task.title}</span>
-                            ${task.progress > 0 ? `<span style="font-size: ${progressFontSize}rem; color: #6b7280; margin-left: ${8 * this.zoomLevel}px;">${Math.round(task.progress)}%</span>` : ''}
-                        </div>
-                    `;
-                    
-                    // グリッド行（コンテナ）
-                    const totalWidth = months.length * cellWidth;
-                    tasksHtml += `<div class="gantt-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; min-height: ${rowHeight}px; height: ${rowHeight}px; background: white;">`;
-                    
-                    // グリッド背景を先に描画
-                    months.forEach((month, index) => {
-                        const monthKey = `${month.year}-${month.month - 1}`;
-                        const isCurrentMonth = monthKey === currentMonth;
-                        let gridClass = 'gantt-grid-line';
-                        if (isCurrentMonth) gridClass += ' today';
+                // タスク行描画ヘルパー
+                const buildMonthTaskRows = (taskList, catIdx) => {
+                    taskList.forEach(task => {
+                        const startDate = new Date(task.start);
+                        startDate.setHours(0, 0, 0, 0);
+                        const endDate = new Date(task.end);
+                        endDate.setHours(0, 0, 0, 0);
                         
-                        let bgColor = 'white';
-                        if (isCurrentMonth) bgColor = '#dbeafe';
+                        const hideStyle = (ganttData.hasCategory && this.collapsedCategories.has(catIdx)) ? 'display: none;' : '';
+                        const catAttr = catIdx >= 0 ? `data-cat-idx="${catIdx}"` : '';
                         
-                        tasksHtml += `<div class="${gridClass}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; height: ${rowHeight}px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
-                    });
-                    
-                    // バーを描画
-                    let barStartIndex = -1;
-                    let barWidth = 0;
-                    
-                    const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
-                    const endMonth = endDate.getFullYear() * 12 + endDate.getMonth();
-                    
-                    months.forEach((month, index) => {
-                        const currentMonthNum = month.year * 12 + (month.month - 1);
-                        if (currentMonthNum >= startMonth && currentMonthNum <= endMonth) {
-                            if (barStartIndex === -1) {
-                                barStartIndex = index;
-                            }
-                            barWidth++;
-                        }
-                    });
-                    
-                    if (barStartIndex !== -1 && barWidth > 0) {
-                        const leftPosition = barStartIndex * cellWidth + 4;
-                        const barWidthPx = barWidth * cellWidth - 8;
-                        const progressWidth = (barWidthPx * task.progress) / 100;
-                        
-                        const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
-                        
-                        tasksHtml += `
-                            <div class="gantt-bar" 
-                                 style="left: ${leftPosition}px; width: ${barWidthPx}px; height: ${barHeight}px; padding: 0 ${barPadding}px; font-size: ${barFontSize}rem; background-color: ${task.color};"
-                                 data-task='${taskJson}'>
-                                <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
-                                <span class="gantt-bar-label">${task.title}</span>
+                        // サイドバー（タスク名）
+                        sidebarHtml += `
+                            <div class="gantt-task-name gantt-cat-task" data-url="${task.url}" title="${task.title}" ${catAttr} style="${hideStyle} min-height: ${rowHeight}px; height: ${rowHeight}px; font-size: ${fontSize}rem; padding: ${padding}px;">
+                                <span class="flex-1">${task.title}</span>
+                                ${task.progress > 0 ? `<span style="font-size: ${progressFontSize}rem; color: #6b7280; margin-left: ${8 * this.zoomLevel}px;">${Math.round(task.progress)}%</span>` : ''}
                             </div>
                         `;
-                    }
+                        
+                        // グリッド行（コンテナ）
+                        tasksHtml += `<div class="gantt-row gantt-cat-task" ${catAttr} style="${hideStyle} width: ${totalWidth}px; min-width: ${totalWidth}px; min-height: ${rowHeight}px; height: ${rowHeight}px; background: white;">`;
+                        
+                        // グリッド背景を先に描画
+                        months.forEach((month, index) => {
+                            const monthKey = `${month.year}-${month.month - 1}`;
+                            const isCurrentMonth = monthKey === currentMonth;
+                            let gridClass = 'gantt-grid-line';
+                            if (isCurrentMonth) gridClass += ' today';
+                            
+                            let bgColor = 'white';
+                            if (isCurrentMonth) bgColor = '#dbeafe';
+                            
+                            tasksHtml += `<div class="${gridClass}" style="min-width: ${cellWidth}px; width: ${cellWidth}px; height: ${rowHeight}px; background-color: ${bgColor} !important; border-bottom: 1px solid #e5e7eb; position: relative; z-index: 1;"></div>`;
+                        });
+                        
+                        // バーを描画
+                        let barStartIndex = -1;
+                        let barWidth = 0;
+                        
+                        const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+                        const endMonth = endDate.getFullYear() * 12 + endDate.getMonth();
+                        
+                        months.forEach((month, index) => {
+                            const currentMonthNum = month.year * 12 + (month.month - 1);
+                            if (currentMonthNum >= startMonth && currentMonthNum <= endMonth) {
+                                if (barStartIndex === -1) {
+                                    barStartIndex = index;
+                                }
+                                barWidth++;
+                            }
+                        });
+                        
+                        if (barStartIndex !== -1 && barWidth > 0) {
+                            const leftPosition = barStartIndex * cellWidth + 4;
+                            const barWidthPx = barWidth * cellWidth - 8;
+                            const progressWidth = (barWidthPx * task.progress) / 100;
+                            
+                            const taskJson = JSON.stringify(task).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                            
+                            tasksHtml += `
+                                <div class="gantt-bar" 
+                                     style="left: ${leftPosition}px; width: ${barWidthPx}px; height: ${barHeight}px; padding: 0 ${barPadding}px; font-size: ${barFontSize}rem; background-color: ${task.color};"
+                                     data-task='${taskJson}'>
+                                    <div class="gantt-bar-inner" style="width: ${progressWidth}px;"></div>
+                                    <span class="gantt-bar-label">${task.title}</span>
+                                </div>
+                            `;
+                        }
+                        
+                        tasksHtml += '</div>';
+                    });
+                };
+                
+                if (ganttData.hasCategory) {
+                    const groups = this.groupByCategory(this.tasks);
+                    this.categoryList = Object.keys(groups);
                     
-                    tasksHtml += '</div>';
-                });
+                    this.categoryList.forEach((categoryName, catIdx) => {
+                        const categoryTasks = groups[categoryName];
+                        const isCollapsed = this.collapsedCategories.has(catIdx);
+                        const displayName = categoryName || '未分類';
+                        
+                        // サイドバー カテゴリーヘッダー
+                        sidebarHtml += `
+                            <div class="gantt-category-header" style="height: ${catHeaderHeight}px;">
+                                <button class="category-toggle-btn" data-cat-idx="${catIdx}" title="${isCollapsed ? '展開' : '折りたたむ'}">${isCollapsed ? '▶' : '▼'}</button>
+                                <span>${displayName} <span style="font-size: 0.8em; color: #6b7280; font-weight: 400;">(${categoryTasks.length}件)</span></span>
+                            </div>
+                        `;
+                        
+                        // ガントボディ カテゴリーヘッダー行
+                        tasksHtml += `
+                            <div class="gantt-category-body-row" style="width: ${totalWidth}px; min-width: ${totalWidth}px; height: ${catHeaderHeight}px;">
+                                <span style="font-size: 0.88rem; font-weight: 700; color: #3730a3;">${displayName}</span>
+                            </div>
+                        `;
+                        
+                        buildMonthTaskRows(categoryTasks, catIdx);
+                    });
+                } else {
+                    buildMonthTaskRows(this.tasks, -1);
+                }
                 
                 // サイドバーのヘッダー高さを計算
                 const monthCellHeight = 40;
@@ -1187,12 +1327,22 @@
                     <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
                         <div class="modal-header">
                             <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">${dateStr} のタスク (${taskCount}件)</h2>
-                            <button class="modal-close">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button class="date-modal-print-btn" title="印刷" style="background: rgba(79,70,229,0.1); border: 1px solid #a5b4fc; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: #4f46e5; display: flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                                        <rect x="6" y="14" width="12" height="8"></rect>
+                                    </svg>
+                                    印刷
+                                </button>
+                                <button class="modal-close">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                         <div class="modal-body" style="padding: 20px;">
                             ${taskCount === 0 ? '<p style="color: #6b7280; text-align: center; padding: 20px 0;">この日付に該当するタスクはありません。</p>' : ''}
@@ -1232,6 +1382,65 @@
                 
                 modal.querySelector('.modal-close')?.addEventListener('click', closeModal);
                 
+                // 印刷ボタン
+                modal.querySelector('.date-modal-print-btn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const taskRowsHtml = tasks.map((task, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${task.title}</td>
+                            <td>${task.start.split(' ')[0]}</td>
+                            <td>${task.end.split(' ')[0]}</td>
+                            <td>${task.progress > 0 ? Math.round(task.progress) + '%' : '-'}</td>
+                            ${ganttData.hasCategory ? `<td>${task.category || ''}</td>` : ''}
+                        </tr>
+                    `).join('');
+                    const categoryHeader = ganttData.hasCategory ? '<th>カテゴリー</th>' : '';
+                    const printHtml = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>${dateStr} のタスク一覧</title>
+<style>
+    body { font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; margin: 20px; color: #111; }
+    h1 { font-size: 1.2rem; margin-bottom: 4px; }
+    p { font-size: 0.85rem; color: #555; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #4f46e5; color: white; padding: 8px 10px; text-align: left; }
+    td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) td { background: #f9fafb; }
+    @media print { body { margin: 10px; } }
+</style>
+</head>
+<body>
+<h1>${dateStr} のタスク一覧</h1>
+<p>全 ${taskCount} 件</p>
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>タスク名</th>
+            <th>開始日</th>
+            <th>終了日</th>
+            <th>進捗</th>
+            ${categoryHeader}
+        </tr>
+    </thead>
+    <tbody>
+        ${taskRowsHtml}
+    </tbody>
+</table>
+</body>
+</html>`;
+                    const printWin = window.open('', '_blank', 'width=800,height=600');
+                    if (printWin) {
+                        printWin.document.write(printHtml);
+                        printWin.document.close();
+                        printWin.focus();
+                        printWin.print();
+                    }
+                });
+                
                 // タスクアイテムクリックで詳細ページへ遷移
                 modal.querySelectorAll('.task-item').forEach(item => {
                     item.addEventListener('click', () => {
@@ -1259,10 +1468,34 @@
             }
 
             attachEventListeners() {
+                // カテゴリー折りたたみ/展開ボタン
+                document.querySelectorAll('.category-toggle-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const catIdx = parseInt(btn.getAttribute('data-cat-idx'));
+                        
+                        if (this.collapsedCategories.has(catIdx)) {
+                            this.collapsedCategories.delete(catIdx);
+                        } else {
+                            this.collapsedCategories.add(catIdx);
+                        }
+                        
+                        const isCollapsed = this.collapsedCategories.has(catIdx);
+                        
+                        // タスク行の表示/非表示を切り替え
+                        document.querySelectorAll(`.gantt-cat-task[data-cat-idx="${catIdx}"]`).forEach(el => {
+                            el.style.display = isCollapsed ? 'none' : '';
+                        });
+                        
+                        // ボタンアイコンを更新
+                        btn.textContent = isCollapsed ? '▶' : '▼';
+                        btn.title = isCollapsed ? '展開' : '折りたたむ';
+                    });
+                });
+                
                 // 日付セルクリックでその日のタスク詳細モーダルを表示
                 document.querySelectorAll('.gantt-date-cell').forEach((cell, index) => {
-                    cell.addEventListener('click', (e) => {
-                        e.preventDefault();
+                    cell.addEventListener('click', (e) => {                        e.preventDefault();
                         e.stopPropagation();
                         
                         // data-date-indexがない場合はindexを使用
