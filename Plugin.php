@@ -124,6 +124,11 @@ class Plugin extends PluginViewBase
                 ->placeholder("進行度1:50\n進行度2:80\n進行度3:100")
                 ->help('選択列を進捗列に使用する場合、テキストと%の対応を1行1組で入力してください。形式: テキスト:数値（例: 進行度1:50）');
                 
+            $form->textarea('progress_color_mapping', '進捗率カラーマッピング')
+                ->rows(5)
+                ->placeholder("30:#EF4444\n70:#F59E0B\n100:#10B981")
+                ->help('進捗率(%)の閾値と色コードの対応を1行1組で入力してください。形式: 閾値:#カラーコード（例: 30:#EF4444）。進捗率がその閾値以下であれば対応する色が使われます。設定すると色指定列より優先されます。なければ通常の色指定列が使用されます。');
+
             $form->select('color_column', '色指定列')
                 ->options($this->custom_table->custom_columns->pluck('column_view_name', 'id'))
                 ->help('タスクの色を指定する列を選択してください。列の値が「赤」「青」「緑」「黄」「紫」の場合、対応する色でタスクが表示されます。それ以外の値や値がない場合は青色で表示されます。');
@@ -208,6 +213,24 @@ class Plugin extends PluginViewBase
             ];
         }
         
+        // 進捗率カラーマッピングを解析（閾値昇順に並べる）
+        $progressColorMapping = [];
+        $progressColorRaw = $this->custom_view->getCustomOption('progress_color_mapping');
+        if (!empty($progressColorRaw)) {
+            foreach (explode("\n", $progressColorRaw) as $line) {
+                $line = trim($line);
+                if (strpos($line, ':') !== false) {
+                    [$threshold, $colorCode] = explode(':', $line, 2);
+                    $threshold = floatval(trim($threshold));
+                    $colorCode = trim($colorCode);
+                    if (!empty($colorCode)) {
+                        $progressColorMapping[$threshold] = $colorCode;
+                    }
+                }
+            }
+            ksort($progressColorMapping); // 閾値を昇順に並べる
+        }
+        
         $categoryColumnId = $this->custom_view->getCustomOption('category_column');
         
         $titleColumn = $titleColumnId ? CustomColumn::find($titleColumnId) : null;
@@ -264,14 +287,30 @@ class Plugin extends PluginViewBase
             }
             
             $color = '#4F46E5'; // デフォルトは青
-            if ($colorColumn) {
-                // 生の値（選択列では保存値）を優先し、マッチしなければ表示値（見出し）でも試みる
+            
+            // 進捗率カラーマッピングが設定されていれば優先適用
+            if (!empty($progressColorMapping)) {
+                foreach ($progressColorMapping as $threshold => $colorCode) {
+                    if ($progress <= $threshold) {
+                        $color = $colorCode;
+                        break;
+                    }
+                }
+            } elseif ($colorColumn) {
                 $colorRaw     = (string)$item->getValue($colorColumn->column_name);
                 $colorDisplay = (string)$item->getValue($colorColumn->column_name, true);
-                $resolved = $this->getColorFromValue($colorRaw);
-                if ($resolved === null) {
+                
+                $resolved = null;
+                
+                // 1. 組み込み色名マップ（生の値）
+                if (!$resolved) {
+                    $resolved = $this->getColorFromValue($colorRaw);
+                }
+                // 2. 組み込み色名マップ（表示値）
+                if (!$resolved) {
                     $resolved = $this->getColorFromValue($colorDisplay);
                 }
+                
                 $color = $resolved ?? '#4F46E5';
             }
             
