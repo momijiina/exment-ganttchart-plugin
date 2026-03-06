@@ -265,8 +265,14 @@ class Plugin extends PluginViewBase
             
             $color = '#4F46E5'; // デフォルトは青
             if ($colorColumn) {
-                $colorValue = $item->getValue($colorColumn->column_name, true);
-                $color = $this->getColorFromValue($colorValue);
+                // 生の値（選択列では保存値）を優先し、マッチしなければ表示値（見出し）でも試みる
+                $colorRaw     = (string)$item->getValue($colorColumn->column_name);
+                $colorDisplay = (string)$item->getValue($colorColumn->column_name, true);
+                $resolved = $this->getColorFromValue($colorRaw);
+                if ($resolved === null) {
+                    $resolved = $this->getColorFromValue($colorDisplay);
+                }
+                $color = $resolved ?? '#4F46E5';
             }
             
             $category = '';
@@ -332,9 +338,12 @@ class Plugin extends PluginViewBase
      * @param string $colorValue
      * @return string
      */
+    /**
+     * 色名または色コードから色コードを返す。マッチしない場合は null を返す。
+     */
     protected function getColorFromValue($colorValue)
     {
-        $colorValue = mb_strtolower($colorValue);
+        $colorValue = mb_strtolower(trim((string)$colorValue));
         
         $colorMap = [
             '赤' => '#EF4444',
@@ -368,12 +377,12 @@ class Plugin extends PluginViewBase
             return $colorMap[$colorValue];
         }
         
-        // カラーコード形式（#で始まる）の場合はそのまま返す
-        if (preg_match('/^#[0-9A-Fa-f]{6}$/', $colorValue)) {
+        // カラーコード形式（#で始まる6桁 or 3桁）の場合はそのまま返す
+        if (preg_match('/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/', $colorValue)) {
             return $colorValue;
         }
         
-        // デフォルトは青
-        return '#4F46E5';
+        // マッチなし → null を返す（呼び出し元でデフォルト色を適用）
+        return null;
     }
 }
