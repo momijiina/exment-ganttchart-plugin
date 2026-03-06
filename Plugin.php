@@ -228,7 +228,8 @@ class Plugin extends PluginViewBase
                     }
                 }
             }
-            ksort($progressColorMapping); // 閾値を昇順に並べる
+            ksort($progressColorMapping, SORT_NUMERIC);
+            krsort($progressColorMapping, SORT_NUMERIC); // 閾値を降順に並べる（以上で最大マッチを優先）
         }
         
         $categoryColumnId = $this->custom_view->getCustomOption('category_column');
@@ -291,7 +292,7 @@ class Plugin extends PluginViewBase
             // 進捗率カラーマッピングが設定されていれば優先適用
             if (!empty($progressColorMapping)) {
                 foreach ($progressColorMapping as $threshold => $colorCode) {
-                    if ($progress <= $threshold) {
+                    if ($progress >= $threshold) {
                         $color = $colorCode;
                         break;
                     }
